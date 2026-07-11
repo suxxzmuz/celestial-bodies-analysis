@@ -93,7 +93,7 @@
         }
 
         #searchBarContainer {
-            display: none; /* 토글로 표시 */
+            display: none; 
             padding: 15px 20px;
             background-color: #f1f1f1;
             border-bottom: 2px solid #ddd;
@@ -190,9 +190,10 @@
     <div id="sidebar">
         <span class="close-btn" onclick="toggleSidebar()">×</span>
         <a href="#" class="category-btn active" data-category="all">전체 보기</a>
+        <a href="#" class="category-btn" data-category="sun">태양 (Sun)</a>
+        <a href="#" class="category-btn" data-category="moon">달   (Moon)</a>
         <a href="#" class="category-btn" data-category="galaxy">은하 (Galaxy)</a>
         <a href="#" class="category-btn" data-category="planet">행성 (Planet)</a>
-        <a href="#" class="category-btn" data-category="nebula">성운 (Nebula)</a>
     </div>
 
     <header class="header">
@@ -219,7 +220,7 @@
     </header>
 
     <div id="searchBarContainer">
-        <input type="text" id="searchInput" placeholder="천체 이름이나 설명을 검색해보세요...">
+        <input type="text" id="searchInput" placeholder="검색...">
     </div>
 
     <div class="container">
@@ -240,10 +241,9 @@
 
         let currentCategory = "all";
 
-        // 2. 화면에 카드를 그려주는 함수
         function renderCards(data) {
             const grid = document.getElementById('galleryGrid');
-            grid.innerHTML = ""; // 기존 카드 초기화
+            grid.innerHTML = "";
 
             if (data.length === 0) {
                 grid.innerHTML = "<p style='grid-column: span 2; text-align:center; padding: 50px;'>검색 결과가 없습니다.</p>";
@@ -267,14 +267,11 @@
             });
         }
 
-        // 3. 필터링 함수 (검색어 + 카테고리 조합)
         function filterData() {
             const searchText = document.getElementById('searchInput').value.toLowerCase();
             
             const filteredData = celestialData.filter(item => {
-                // 카테고리 일치 여부
                 const matchCategory = (currentCategory === "all") || (item.category === currentCategory);
-                // 검색어 일치 여부 (이름 또는 설명에 포함)
                 const matchSearch = item.name.toLowerCase().includes(searchText) || item.desc.toLowerCase().includes(searchText);
                 
                 return matchCategory && matchSearch;
@@ -292,34 +289,29 @@
             const searchBar = document.getElementById("searchBarContainer");
             if (searchBar.style.display === "block") {
                 searchBar.style.display = "none";
-                document.getElementById('searchInput').value = ""; // 닫을 때 검색어 초기화
+                document.getElementById('searchInput').value = "";
                 filterData();
             } else {
                 searchBar.style.display = "block";
-                document.getElementById('searchInput').focus(); // 열릴 때 커서 이동
+                document.getElementById('searchInput').focus(); 
             }
         }
 
-        // 5. 카테고리 버튼 클릭 이벤트 연결
         document.querySelectorAll('.category-btn').forEach(btn => {
             btn.addEventListener('click', function(e) {
-                e.preventDefault(); // 링크 이동 방지
+                e.preventDefault(); 
                 
-                // 선택된 버튼 디자인 활성화
                 document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
                 this.classList.add('active');
 
-                // 카테고리 업데이트 및 필터링 실행
                 currentCategory = this.getAttribute('data-category');
                 filterData();
-                toggleSidebar(); // 메뉴 선택 후 사이드바 닫기
+                toggleSidebar(); 
             });
         });
 
-        // 6. 검색창 입력 이벤트 연결 (글자를 칠 때마다 실시간 검색)
         document.getElementById('searchInput').addEventListener('input', filterData);
 
-        // 7. 페이지 로드 시 최초 카드 렌더링
         renderCards(celestialData);
 
     </script>
