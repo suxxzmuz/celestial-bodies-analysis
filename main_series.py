@@ -1,3 +1,4 @@
+import math
 import cv2
 import numpy as np
 import os
@@ -251,6 +252,32 @@ if len(series_data) >= 2:
     print("확정된 흑점 이동 결과")
     print("=" * 54)
 
+    #적도 방향 및 자전축 추정
+    direction_angles = []
+    for match in confirmed_matches:
+       dx = match["x"] - match["start_x"]
+       dy = match["y"] - match["start_y"]
+
+       if math.hypot(dx, dy) < 1:
+          continue
+       
+       angle = math.degrees(math.atan2(dy, dx))
+
+       direction_angles.append(angle)
+
+    #평균 방향 계산
+    rotation_axis_angle = sum(direction_angles) / len(direction_angles)
+
+    #자전축 방향
+    equator_angle = rotation_axis_angle + 90
+
+    print("\n" + "=" * 54)
+    print("자전축 추정")
+    print("=" * 54)
+
+    print(f"적도 방향 : {equator_angle:.2f}°")
+    print(f"자전축 방향 : {rotation_axis_angle:.2f}°")
+    
     for match in confirmed_matches:
        dx = match["x"] - match["start_x"]
        dy = match["y"] - match["start_y"]
