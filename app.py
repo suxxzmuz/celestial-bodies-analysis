@@ -117,16 +117,11 @@ def analyze_single():
             return jsonify({'status': 'fail', 'message': '이미지를 불러올 수 없습니다.'})
 
         # ── 2. 해상도 정규화 (0.2 고정 비율 → 장축 기준 정규화)
-        #      원본이 너무 크거나 작아도 허프 서클 검출 안정성 확보
         h_orig, w_orig = image.shape[:2]
         scale = 0.2
         image = cv2.resize(image, (0, 0), fx=scale, fy=scale)
 
         # ── 3. 흑백 변환 2종 생성 ─────────────────────────────────
-        #   gray      : 원본(비블러) → 흑점 픽셀값 추출·마스킹에 사용
-        #   gray_blur : 가우시안 블러 적용 → 허프 서클 검출에만 사용
-        #   ※ 원본 main_single 에서는 gray_blur 를 마스킹에도 써서
-        #     흑점 경계가 뭉개지는 문제가 있었음 → 분리 처리
         gray      = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         gray_blur = cv2.GaussianBlur(gray, (5, 5), 0)
 
@@ -144,17 +139,14 @@ def analyze_single():
         x, y, r = circles[0]
 
         # ── 5. 태양 원판 면적 계산 (sun_area) ────────────────────
-        #   원본 main_single 에 있던 값 → app.py 에 누락되어 있었음
         sun_area = np.pi * (r ** 2)
 
         # ── 6. 태양 마스크 생성 ───────────────────────────────────
-        #   블러 전 원본 gray 로 마스킹 → 흑점 픽셀값 정확도 향상
         mask   = np.zeros(gray.shape, dtype=np.uint8)
         cv2.circle(mask, (x, y), r, 255, -1)
-        masked = cv2.bitwise_and(gray, gray, mask=mask)   # ← gray (비블러) 사용
+        masked = cv2.bitwise_and(gray, gray, mask=mask)  
 
         # ── 7. 태양 원판 내부 통계 계산 ──────────────────────────
-        #   원본 main_single 에 있었으나 app.py 에서 누락
         sun_pixels = masked[mask == 255]
         mean_brightness = float(np.mean(sun_pixels))
         std_brightness  = float(np.std(sun_pixels))
@@ -165,7 +157,6 @@ def analyze_single():
         max_spot_size = int(request.form.get('maxSpotSize',  500))  # 상한도 조절 가능하게
 
         # ── 9. 적응형 임계값으로 흑점 후보 검출 ──────────────────
-        #   masked (비블러) 기반 → 미세 흑점도 경계 선명하게 검출
         spots = cv2.adaptiveThreshold(
             masked, 255,
             cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
