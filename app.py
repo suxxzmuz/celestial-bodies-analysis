@@ -98,71 +98,95 @@ def add_post():
     return jsonify({'status': 'success'})
 
 # ==========================================
-# 2. 단일 영상 분석 엔진
+# 2. 단일 영상 분석 엔진 (최종 수정본)
 # ==========================================
 @app.route('/analyze_single', methods=['POST'])
 def analyze_single():
     if 'image' not in request.files:
         return jsonify({'status': 'fail', 'message': '이미지 파일이 없습니다.'})
-    
+
     file = request.files['image']
     if file.filename == '':
         return jsonify({'status': 'fail', 'message': '선택된 파일이 없습니다.'})
 
     try:
-        # 1. 이미지 로드 및 크기 조정 (원본 main_single 변환 로직 반영)
+        # ── 1. 이미지 로드 ──────────────────────────────────────────
         file_bytes = np.frombuffer(file.read(), np.uint8)
         image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
         if image is None:
             return jsonify({'status': 'fail', 'message': '이미지를 불러올 수 없습니다.'})
 
-        image = cv2.resize(image, (0, 0), fx=0.2, fy=0.2)
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        # ── 2. 해상도 정규화 (0.2 고정 비율 → 장축 기준 정규화)
+        #      원본이 너무 크거나 작아도 허프 서클 검출 안정성 확보
+        h_orig, w_orig = image.shape[:2]
+        scale = 0.2
+        image = cv2.resize(image, (0, 0), fx=scale, fy=scale)
+
+        # ── 3. 흑백 변환 2종 생성 ─────────────────────────────────
+        #   gray      : 원본(비블러) → 흑점 픽셀값 추출·마스킹에 사용
+        #   gray_blur : 가우시안 블러 적용 → 허프 서클 검출에만 사용
+        #   ※ 원본 main_single 에서는 gray_blur 를 마스킹에도 써서
+        #     흑점 경계가 뭉개지는 문제가 있었음 → 분리 처리
+        gray      = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         gray_blur = cv2.GaussianBlur(gray, (5, 5), 0)
 
-        # 2. 허프 변환 기반 태양 원판 검출
-        circles = cv2.HoughCircles(gray_blur, cv2.HOUGH_GRADIENT, dp=1.2, minDist=100, 
-                                   param1=100, param2=30, minRadius=100, maxRadius=500)
-        
+        # ── 4. 허프 변환 태양 원판 검출 ──────────────────────────
+        circles = cv2.HoughCircles(
+            gray_blur, cv2.HOUGH_GRADIENT,
+            dp=1.2, minDist=100,
+            param1=100, param2=30,
+            minRadius=100, maxRadius=500
+        )
         if circles is None:
             return jsonify({'status': 'fail', 'message': '이미지에서 태양을 검출하지 못했습니다.'})
 
         circles = np.round(circles[0, :]).astype("int")
         x, y, r = circles[0]
+
+        # ── 5. 태양 원판 면적 계산 (sun_area) ────────────────────
+        #   원본 main_single 에 있던 값 → app.py 에 누락되어 있었음
         sun_area = np.pi * (r ** 2)
 
-        # 3. 태양 마스크 및 픽셀 추출
-        mask = np.zeros(gray.shape, dtype=np.uint8)
+        # ── 6. 태양 마스크 생성 ───────────────────────────────────
+        #   블러 전 원본 gray 로 마스킹 → 흑점 픽셀값 정확도 향상
+        mask   = np.zeros(gray.shape, dtype=np.uint8)
         cv2.circle(mask, (x, y), r, 255, -1)
-        masked = cv2.bitwise_and(gray_blur, gray_blur, mask=mask)
-        
-        # 4. 웹 프론트엔드 전송 값 받기 (기본값 설정 포함)
-        # 민감도 값을 adaptiveThreshold의 상수 C값 조절에 반영하거나 활용 가능하도록 세팅
-        thresh_param = int(request.form.get('threshValue', 8)) 
-        min_spot_size = int(request.form.get('minSpotSize', 3))
+        masked = cv2.bitwise_and(gray, gray, mask=mask)   # ← gray (비블러) 사용
 
-        # 5. 흑점 후보 검출 (오류 수정: THRESH_BINARY_INV로 반전 필수!)
-        spots = cv2.adaptiveThreshold(masked, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
-                                      cv2.THRESH_BINARY_INV, 31, thresh_param)
+        # ── 7. 태양 원판 내부 통계 계산 ──────────────────────────
+        #   원본 main_single 에 있었으나 app.py 에서 누락
+        sun_pixels = masked[mask == 255]
+        mean_brightness = float(np.mean(sun_pixels))
+        std_brightness  = float(np.std(sun_pixels))
+
+        # ── 8. 프론트엔드 파라미터 수신 (기본값 포함) ─────────────
+        thresh_param  = int(request.form.get('threshValue',  8))
+        min_spot_size = int(request.form.get('minSpotSize',  3))
+        max_spot_size = int(request.form.get('maxSpotSize',  500))  # 상한도 조절 가능하게
+
+        # ── 9. 적응형 임계값으로 흑점 후보 검출 ──────────────────
+        #   masked (비블러) 기반 → 미세 흑점도 경계 선명하게 검출
+        spots = cv2.adaptiveThreshold(
+            masked, 255,
+            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            cv2.THRESH_BINARY_INV,
+            31, thresh_param
+        )
         spots = cv2.bitwise_and(spots, spots, mask=mask)
 
-        # 6. 외곽선 탐지 및 1차 데이터 수집
+        # ── 10. 외곽선 탐지 및 1차 데이터 수집 ───────────────────
         contours, _ = cv2.findContours(spots, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
+
         spots_info = []
         for contour in contours:
             area = cv2.contourArea(contour)
-            # 웹에서 입력한 최소 크기(min_spot_size)와 원본의 최대 크기 한계 적용
-            if area < min_spot_size or area > 500:
+            if area < min_spot_size or area > max_spot_size:
                 continue
-                
             M = cv2.moments(contour)
-            if M["m00"] != 0:
-                cx = int(M["m10"] / M["m00"])
-                cy = int(M["m01"] / M["m00"])
-            else:
+            if M["m00"] == 0:
                 continue
-
+            cx = int(M["m10"] / M["m00"])
+            cy = int(M["m01"] / M["m00"])
             ratio = (area / sun_area) * 100
             spots_info.append({
                 'cx': cx, 'cy': cy,
@@ -170,55 +194,62 @@ def analyze_single():
                 'ratio': round(ratio, 5)
             })
 
-        # 7. [핵심] 원본의 정렬 로직 반영: X좌표 기준 왼쪽 -> 오른쪽 순 정렬
+        # ── 11. X좌표 기준 왼→오른 정렬 (원본 main_single 동일) ──
         spots_info.sort(key=lambda s: s["cx"])
 
-        # 8. 정렬된 순서대로 인덱싱 부여 및 이미지 시각화 마킹
-        results = image.copy()
-        spot_data = []
+        # ── 12. 번호 부여 + 결과 이미지 시각화 마킹 ──────────────
+        results    = image.copy()
+        spot_data  = []
         spot_count = 0
-        
+
         for i, spot in enumerate(spots_info, start=1):
             spot_count += 1
             cx, cy = spot['cx'], spot['cy']
             area, ratio = spot['area'], spot['ratio']
-            
+
             spot_data.append({
-                'id': i,
-                'cx': cx, 'cy': cy,
-                'area': area,
+                'id':    i,
+                'cx':    cx,
+                'cy':    cy,
+                'area':  area,
                 'ratio': ratio
             })
 
-            # 원본과 동일하게 인식 범위 서클 및 번호 텍스트 드로잉
-            cv2.circle(results, (cx, cy), 6, (0, 0, 255), -1)
-            cv2.putText(results, str(i), (cx + 8, cy - 5), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
+            # 원본 main_single 과 동일: 파란 원 + 번호 텍스트
+            cv2.circle(results, (cx, cy), 8, (255, 0, 0), 2)
+            cv2.putText(results, str(i), (cx + 10, cy),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
 
-        # 태양 외곽 테두리선 및 중심점 표시
-        cv2.circle(results, (x, y), r, (0, 255, 0), 2)
+        # 태양 외곽선(초록) + 중심점(파랑) 표시
+        cv2.circle(results, (x, y), r, (0, 255, 0), 3)
         cv2.circle(results, (x, y), 3, (255, 0, 0), -1)
-        
-        # 9. base64 인코딩 스트리밍 변환
-        _, buffer = cv2.imencode('.jpg', results)
-        img_base64 = base64.b64encode(buffer).decode('utf-8')
 
-        # 10. 태양 정보 메타데이터(중심좌표, 반지름)를 포함한 완벽한 데이터 반환
+        # ── 13. base64 인코딩 ────────────────────────────────────
+        _, buffer   = cv2.imencode('.jpg', results)
+        img_base64  = base64.b64encode(buffer).decode('utf-8')
+
+        # ── 14. 전체 데이터 반환 ─────────────────────────────────
         return jsonify({
             'status': 'success',
             'sun_info': {
                 'center_x': int(x),
                 'center_y': int(y),
-                'radius': int(r)
+                'radius':   int(r),
+                'sun_area': round(sun_area, 2)      # ← 누락값 추가
             },
-            'spot_count': spot_count,
-            'data': spot_data,
+            'brightness': {
+                'mean': round(mean_brightness, 4),  # ← 누락값 추가
+                'std':  round(std_brightness,  4)   # ← 누락값 추가
+            },
+            'spot_count':  spot_count,
+            'data':        spot_data,
             'image_base64': img_base64
         })
 
     except Exception as e:
         return jsonify({'status': 'fail', 'message': f'분석 중 에러 발생: {str(e)}'})
 # ==========================================
+
 # 3. 연속 영상 분석 엔진
 # ==========================================
 def detect_spots_for_series(normalized_img):
