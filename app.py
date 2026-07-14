@@ -239,8 +239,8 @@ def analyze_single():
 
     except Exception as e:
         return jsonify({'status': 'fail', 'message': f'분석 중 에러 발생: {str(e)}'})
+    
 # ==========================================
-
 # 3. 연속 영상 분석 엔진
 # ==========================================
 def detect_spots_for_series(normalized_img):
