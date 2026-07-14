@@ -73,7 +73,7 @@
 
         input:focus {
             outline: none;
-            border-color: var(--primary-color); /* 클릭 시 테두리 색상 변경 */
+            border-color: var(--primary-color); 
         }
 
         button.login-btn {
@@ -118,12 +118,11 @@
 
             if ((id === 'admin' || id === 'user') && pw === '123456789') {
                 
-                // 아이디에 따라 예쁜 한글 이름 지정
                 let displayName = (id === 'admin') ? '관리자' : '유저';
                 localStorage.setItem('loggedInUser', displayName);
                 
                 alert(displayName + '님, 환영합니다!');
-                window.location.href = 'index.html'; 
+                window.location.href = '/'; 
             } else {
                 alert('아이디나 비밀번호가 틀렸어요! 다시 확인해주세요.');
             }

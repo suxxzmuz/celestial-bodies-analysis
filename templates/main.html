@@ -229,37 +229,45 @@
     </div>
 
     <script>
-        // 1. 테스트용 더미 데이터 세팅 (나중에 백엔드 API에서 받아올 데이터 형태)
-        const celestialData = [
-            { id: 1, name: "안드로메다 은하", category: "galaxy", desc: "우리 은하와 가장 가까운 나선 은하입니다. 250만 광년 떨어져 있습니다.", icon: "🌌" },
-            { id: 2, name: "목성", category: "planet", desc: "태양계에서 가장 큰 가스 행성으로, 거대한 대적점이 특징입니다.", icon: "🪐" },
-            { id: 3, name: "오리온 성운", category: "nebula", desc: "맨눈으로도 볼 수 있는 밝은 성운으로, 새로운 별들이 태어나는 곳입니다.", icon: "✨" },
-            { id: 4, name: "화성", category: "planet", desc: "붉은 행성이라 불리며, 과거에 물이 흘렀던 흔적이 있습니다.", icon: "🔴" },
-            { id: 5, name: "솜브레로 은하", category: "galaxy", desc: "모자 모양을 닮은 독특한 형태의 나선 은하입니다.", icon: "🛸" },
-            { id: 6, name: "게 성운", category: "nebula", desc: "초신성 폭발의 잔해로 이루어진 아름다운 성운입니다.", icon: "💥" }
-        ];
-
+        let celestialData = []; // 서버에서 받아올 데이터를 담을 변수
         let currentCategory = "all";
 
+        // 서버(DB)에서 데이터를 가져오는 함수
+        async function fetchPosts() {
+            try {
+                const response = await fetch('/api/posts');
+                const result = await response.json();
+                if (result.status === 'success') {
+                    celestialData = result.data;
+                    filterData(); // 데이터 로드 완료 후 렌더링
+                }
+            } catch (error) {
+                console.error("데이터를 불러오는 중 에러 발생:", error);
+            }
+        }
+
+        // 카드 렌더링 함수
         function renderCards(data) {
             const grid = document.getElementById('galleryGrid');
             grid.innerHTML = "";
 
             if (data.length === 0) {
-                grid.innerHTML = "<p style='grid-column: span 2; text-align:center; padding: 50px;'>검색 결과가 없습니다.</p>";
+                grid.innerHTML = "<p style='grid-column: span 2; text-align:center; padding: 100px 0; color:#666;'>아직 등록된 분석 자료가 없습니다. 우측 상단의 '공유하기' 버튼을 눌러 첫 번째 분석 자료를 올려보세요!</p>";
                 return;
             }
 
             data.forEach(item => {
                 const cardHTML = `
                     <div class="card">
-                        <div class="card-image">${item.icon}</div>
+                        <div class="card-image">
+                            <img src="${item.image_base64}" alt="분석이미지">
+                        </div>
                         <div class="card-bottom">
                             <div class="info-text">
-                                <div class="info-name">${item.name}</div>
-                                <div class="info-desc">${item.desc}</div>
+                                <div class="info-category">${item.category}</div>
+                                <div class="info-name">${item.title}</div>
                             </div>
-                            <button class="detail-btn" onclick="alert('${item.name} 상세 페이지로 이동합니다.')">➔</button>
+                            <button class="detail-btn" onclick="openDetailModal(${item.id})">➔</button>
                         </div>
                     </div>
                 `;
@@ -267,24 +275,83 @@
             });
         }
 
+        // 검색 및 카테고리 필터링
         function filterData() {
             const searchText = document.getElementById('searchInput').value.toLowerCase();
-            
             const filteredData = celestialData.filter(item => {
                 const matchCategory = (currentCategory === "all") || (item.category === currentCategory);
-                const matchSearch = item.name.toLowerCase().includes(searchText) || item.desc.toLowerCase().includes(searchText);
-                
+                const matchSearch = item.title.toLowerCase().includes(searchText) || item.description.toLowerCase().includes(searchText);
                 return matchCategory && matchSearch;
             });
-
             renderCards(filteredData);
         }
 
-        // 4. UI 제어 함수들
-        function toggleSidebar() {
-            document.getElementById("sidebar").classList.toggle("open");
-        }
+        // 업로드 폼 제출 처리 (DB로 POST 전송)
+        document.getElementById('uploadForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const file = document.getElementById('uploadImage').files[0];
+            if (!file) return;
 
+            // 파일 크기가 너무 크면 제한 (SQLite 과부하 방지)
+            if(file.size > 2 * 1024 * 1024) {
+                alert("이미지 파일 크기는 2MB 이하여야 합니다.");
+                return;
+            }
+
+            const submitBtn = document.querySelector('.submit-btn');
+            submitBtn.innerText = "업로드 중...";
+            submitBtn.disabled = true;
+
+            const reader = new FileReader();
+            reader.onload = async function(event) {
+                const payload = {
+                    title: document.getElementById('uploadTitle').value,
+                    category: document.getElementById('uploadCategory').value,
+                    description: document.getElementById('uploadDesc').value,
+                    image: event.target.result // Base64 이미지
+                };
+                
+                // 파이썬 DB API로 데이터 쏘기
+                try {
+                    const response = await fetch('/api/posts', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    
+                    if(response.ok) {
+                        // 성공 시 폼 초기화 및 새로고침
+                        document.getElementById('uploadForm').reset();
+                        closeUploadModal();
+                        fetchPosts(); // DB에서 새로운 리스트 다시 불러오기
+                    } else {
+                        alert("업로드에 실패했습니다.");
+                    }
+                } catch (error) {
+                    alert("서버 연결 오류가 발생했습니다.");
+                } finally {
+                    submitBtn.innerText = "자료 등록하기";
+                    submitBtn.disabled = false;
+                }
+            };
+            reader.readAsDataURL(file);
+        });
+
+        function openUploadModal() { document.getElementById('uploadModal').style.display = 'flex'; }
+        function closeUploadModal() { document.getElementById('uploadModal').style.display = 'none'; }
+        
+        function openDetailModal(id) {
+            const item = celestialData.find(d => d.id === id);
+            if(!item) return;
+            document.getElementById('detailImage').src = item.image_base64;
+            document.getElementById('detailTitle').innerText = item.title;
+            document.getElementById('detailCategory').innerText = item.category;
+            document.getElementById('detailDesc').innerText = item.description;
+            document.getElementById('detailModal').style.display = 'flex';
+        }
+        function closeDetailModal() { document.getElementById('detailModal').style.display = 'none'; }
+
+        function toggleSidebar() { document.getElementById("sidebar").classList.toggle("open"); }
         function toggleSearchBar() {
             const searchBar = document.getElementById("searchBarContainer");
             if (searchBar.style.display === "block") {
@@ -300,10 +367,8 @@
         document.querySelectorAll('.category-btn').forEach(btn => {
             btn.addEventListener('click', function(e) {
                 e.preventDefault(); 
-                
                 document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
                 this.classList.add('active');
-
                 currentCategory = this.getAttribute('data-category');
                 filterData();
                 toggleSidebar(); 
@@ -312,8 +377,7 @@
 
         document.getElementById('searchInput').addEventListener('input', filterData);
 
-        renderCards(celestialData);
-
+        document.addEventListener('DOMContentLoaded', fetchPosts);
     </script>
 </body>
 </html> 
