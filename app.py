@@ -218,9 +218,11 @@ def analyze_single():
         return jsonify({'status': 'fail', 'message': f'분석 중 에러 발생: {str(e)}'})
 
 # ==========================================
-# 3. 연속 영상 분석 엔진 
+# 3. 연속 영상 분석 엔진 (다중 이미지 처리 완벽 통합본)
 # ==========================================
+
 def rotate_point(x, y, center_x, center_y, angle_deg):
+    """지정된 각도만큼 좌표를 회전시켜 적도 기준 평면으로 정렬하는 함수"""
     theta = math.radians(angle_deg)
     rel_x = x - center_x
     rel_y = y - center_y
@@ -228,193 +230,139 @@ def rotate_point(x, y, center_x, center_y, angle_deg):
     rot_y = -rel_x * math.sin(theta) + rel_y * math.cos(theta)
     return rot_x, rot_y
 
+def process_and_extract_spots(file_obj, thresh_value):
+    """개별 이미지의 태양 영역을 정규화하고 흑점의 위치와 면적을 추출"""
+    file_bytes = np.frombuffer(file_obj.read(), np.uint8)
+    image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+    if image is None: return None, None
+
+    # [1] 태양 영역 정규화 (크기 및 중심 맞추기)
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    gray_blur = cv2.GaussianBlur(gray, (5, 5), 0)
+    circles = cv2.HoughCircles(gray_blur, cv2.HOUGH_GRADIENT, dp=1.2, minDist=100, 
+                               param1=100, param2=30, minRadius=50, maxRadius=min(image.shape[:2])//2)
+    
+    normalized_img = np.zeros((TARGET_SIZE, TARGET_SIZE, 3), dtype=np.uint8)
+    if circles is not None:
+        circles = np.round(circles[0, :]).astype("int")
+        x, y, r = circles[0]
+        scale = TARGET_RADIUS / float(r)
+        M = cv2.getRotationMatrix2D((x, y), 0, scale)
+        M[0, 2] += TARGET_CENTER[0] - x
+        M[1, 2] += TARGET_CENTER[1] - y
+        normalized_img = cv2.warpAffine(image, M, (TARGET_SIZE, TARGET_SIZE))
+    else:
+        normalized_img = cv2.resize(image, (TARGET_SIZE, TARGET_SIZE))
+
+    # [2] 흑점 검출
+    norm_gray = cv2.cvtColor(normalized_img, cv2.COLOR_BGR2GRAY)
+    mask = np.zeros(norm_gray.shape, dtype=np.uint8)
+    cv2.circle(mask, TARGET_CENTER, TARGET_RADIUS, 255, -1)
+    
+    _, thresh = cv2.threshold(norm_gray, thresh_value, 255, cv2.THRESH_BINARY_INV)
+    thresh = cv2.bitwise_and(thresh, thresh, mask=mask)
+    
+    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    spots = []
+    spot_id = 1
+    for cnt in contours:
+        area = cv2.contourArea(cnt)
+        if area >= 5: # 노이즈 제거
+            M = cv2.moments(cnt)
+            if M["m00"] != 0:
+                cx = int(M["m10"] / M["m00"])
+                cy = int(M["m01"] / M["m00"])
+                spots.append({
+                    "id": spot_id,
+                    "cx": cx, "cy": cy,
+                    "area": round(area, 2)
+                })
+                spot_id += 1
+                
+    return normalized_img, spots
+
+
 @app.route('/analyze_series', methods=['POST'])
 def analyze_series():
+    # 💡 다중 파일(2장 이상)을 리스트로 받아옵니다.
     files = request.files.getlist('images')
-    if len(files) < 2:
-        return jsonify({'status': 'fail', 'message': '최소 2장 이상의 이미지가 필요합니다.'})
+    if not files or len(files) < 2:
+        return jsonify({'status': 'fail', 'message': '정확한 궤적 추적을 위해 2장 이상의 이미지를 업로드해야 합니다.'})
 
     try:
-        # 파일명 기준 정렬
-        files = sorted(files, key=lambda f: f.filename)
+        thresh_val = int(request.form.get('threshValue', 80))
+        
+        # 파일명을 기준으로 정렬하여 시간 순서 보장
+        files = sorted(files, key=lambda x: x.filename)
+        
         series_data = []
-
-        # 1. 모든 이미지 정규화 및 흑점 검출
-        for index, file in enumerate(files, start=1):
-            file_bytes = np.frombuffer(file.read(), np.uint8)
-            image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-            if image is None:
-                continue
-
-            # 화면 크기 조절 및 흑백/가우시안 처리
-            image = cv2.resize(image, (0, 0), fx=0.2, fy=0.2)
-            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-            gray = cv2.GaussianBlur(gray, (5, 5), 0)
-
-            # 태양 원판 검출
-            circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, dp=1.2, minDist=100, param1=100, param2=30, minRadius=100, maxRadius=500)
-            if circles is None:
-                continue
-            
-            circles = np.round(circles[0]).astype(int)
-            x, y, r = circles[0]
-
-            # 태양 원판 중앙 정렬 및 크기 정규화
-            target_x, target_y = TARGET_CENTER
-            scale = TARGET_RADIUS / r
-            resized = cv2.resize(image, None, fx=scale, fy=scale, interpolation=cv2.INTER_LINEAR)
-            new_x = int(x * scale)
-            new_y = int(y * scale)
-
-            normalized = np.zeros((TARGET_SIZE, TARGET_SIZE, 3), dtype=np.uint8)
-            start_x = target_x - new_x
-            start_y = target_y - new_y
-
-            src_x1 = max(0, -start_x)
-            src_y1 = max(0, -start_y)
-            src_x2 = min(resized.shape[1], TARGET_SIZE - start_x)
-            src_y2 = min(resized.shape[0], TARGET_SIZE - start_y)
-
-            dst_x1 = max(0, start_x)
-            dst_y1 = max(0, start_y)
-            dst_x2 = dst_x1 + (src_x2 - src_x1)
-            dst_y2 = dst_y1 + (src_y2 - src_y1)
-
-            normalized[dst_y1:dst_y2, dst_x1:dst_x2] = resized[src_y1:src_y2, src_x1:src_x2]
-
-            # 흑점 검출
-            norm_gray = cv2.cvtColor(normalized, cv2.COLOR_BGR2GRAY)
-            norm_gray = cv2.GaussianBlur(norm_gray, (5, 5), 0)
-            mask = np.zeros(norm_gray.shape, dtype=np.uint8)
-            cv2.circle(mask, TARGET_CENTER, TARGET_RADIUS, 255, -1)
-            masked = cv2.bitwise_and(norm_gray, norm_gray, mask=mask)
-            
-            spots_mask = cv2.adaptiveThreshold(masked, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 31, 8)
-            spots_mask = cv2.bitwise_and(spots_mask, spots_mask, mask=mask)
-
-            # =========================================================
-            # [수정] 노이즈 제거: 연속 영상 분석 시에만 모폴로지 연산 추가
-            # =========================================================
-            kernel_series = np.ones((3, 3), np.uint8)
-            spots_mask = cv2.morphologyEx(spots_mask, cv2.MORPH_OPEN, kernel_series, iterations=1)
-            # =========================================================
-
-            contours, _ = cv2.findContours(spots_mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-
-            spot_list = []
-            for contour in contours:
-                area = cv2.contourArea(contour)
-                # =========================================================
-                # [수정] 연속 영상 분석 시 노이즈 면적 필터링 기준 강화 (2 -> 10으로 변경)
-                # =========================================================
-                if area < 10 or area > 500:
-                    continue
-                # =========================================================
-                moments = cv2.moments(contour)
-                if moments["m00"] == 0:
-                    continue
-                cx = int(moments["m10"] / moments["m00"])
-                cy = int(moments["m01"] / moments["m00"])
-                spot_list.append({"x": cx, "y": cy, "area": float(area)})
-            
-            spot_list.sort(key=lambda spot: spot["x"])
-            
-            series_data.append({
-                "index": index,
-                "filename": file.filename,
-                "normalized": normalized,
-                "gray": norm_gray,
-                "spots": spot_list
-            })
-
-        if len(series_data) < 2:
-            return jsonify({'status': 'fail', 'message': '정상 분석 가능한(태양 검출 완료) 사진이 2장 미만입니다.'})
-
-        # 2. 첫 번째 → 두 번째 사진 템플릿 매칭
-        first_data = series_data[0]
-        second_data = series_data[1]
-        first_gray = first_data["gray"]
-        second_gray = second_data["gray"]
-        match_result_image = second_data["normalized"].copy()
-
-        matches = []
-        used_candidates = set()
-        size = 15
-
-        for spot_index, first_spot in enumerate(first_data["spots"], start=1):
-            first_cx, first_cy = first_spot["x"], first_spot["y"]
-            
-            tx1 = max(0, first_cx - size)
-            ty1 = max(0, first_cy - size)
-            tx2 = min(first_gray.shape[1], first_cx + size)
-            ty2 = min(first_gray.shape[0], first_cy + size)
-            
-            template = first_gray[ty1:ty2, tx1:tx2]
-            
-            best_score = -1
-            best_candidate_index = None
-            best_candidate = None
-
-            for candidate_index, candidate in enumerate(second_data["spots"]):
-                if candidate_index in used_candidates:
-                    continue
-
-                candidate_cx, candidate_cy = candidate["x"], candidate["y"]
-                cx1 = max(0, candidate_cx - size)
-                cy1 = max(0, candidate_cy - size)
-                cx2 = min(second_gray.shape[1], candidate_cx + size)
-                cy2 = min(second_gray.shape[0], candidate_cy + size)
-
-                candidate_patch = second_gray[cy1:cy2, cx1:cx2]
-                if candidate_patch.shape != template.shape:
-                    continue
-
-                score_map = cv2.matchTemplate(candidate_patch, template, cv2.TM_CCOEFF_NORMED)
-                score = float(score_map[0][0])
-
-                if score > best_score:
-                    best_score = score
-                    best_candidate_index = candidate_index
-                    best_candidate = candidate
-
-            # 유사도 0.7 이상인 매칭만 자동 확정 처리
-            if best_candidate is not None and best_score >= 0.70:
-                used_candidates.add(best_candidate_index)
-                matches.append({
-                    "id": spot_index,
-                    "start_x": first_cx, "start_y": first_cy,
-                    "x": best_candidate["x"], "y": best_candidate["y"],
-                    "score": best_score
+        for idx, file_obj in enumerate(files):
+            img, spots = process_and_extract_spots(file_obj, thresh_val)
+            if img is not None:
+                series_data.append({
+                    "index": idx + 1,
+                    "filename": file_obj.filename,
+                    "img": img,
+                    "spots": spots
                 })
+        
+        if len(series_data) < 2:
+            return jsonify({'status': 'fail', 'message': '분석 가능한 이미지가 2장 미만입니다.'})
+
+        # 처음 이미지와 마지막 이미지 추출
+        first_data = series_data[0]
+        last_data = series_data[-1]
+        
+        img1, spots1 = first_data['img'], first_data['spots']
+        img2, spots2 = last_data['img'], last_data['spots']
+
+        # 1. 흑점 매칭 (첫 이미지 vs 마지막 이미지 유클리디안 거리 매칭)
+        matches = []
+        match_id = 1
+        for s1 in spots1:
+            best_match = None
+            min_dist = 200 # 최대 탐색 반경 여유 허용치
+            for s2 in spots2:
+                dist = math.hypot(s1['cx'] - s2['cx'], s1['cy'] - s2['cy'])
+                if dist < min_dist:
+                    min_dist = dist
+                    best_match = s2
+            
+            if best_match:
+                matches.append({
+                    'id': match_id,
+                    'start_x': s1['cx'], 'start_y': s1['cy'],
+                    'end_x': best_match['cx'], 'end_y': best_match['cy'],
+                    'area': s1['area'], 
+                    'dx': best_match['cx'] - s1['cx'],
+                    'dy': best_match['cy'] - s1['cy'],
+                    'distance': round(min_dist, 2)
+                })
+                match_id += 1
 
         if not matches:
-            return jsonify({'status': 'fail', 'message': '유효한 흑점 매칭 결과가 없습니다.'})
+            return jsonify({'status': 'fail', 'message': '첫 이미지와 마지막 이미지 사이에서 동일한 흑점을 추적하지 못했습니다.'})
 
-        # 3. 물리적 계산 (대표 흑점, 적도 방향, 자전축, 위도 등)
-        center_x, center_y = TARGET_CENTER
-        for match in matches:
-            match["center_distance"] = math.hypot(match["start_x"] - center_x, match["start_y"] - center_y)
-
-        # 태양 중심에 가장 가까운 대표 흑점 선정
-        best_match = min(matches, key=lambda match: match["center_distance"])
+        # 2. 대표 흑점 선정 (면적이 가장 큰 확실한 흑점 기준)
+        rep_match = max(matches, key=lambda x: x['area'])
         
-        best_dx = best_match["x"] - best_match["start_x"]
-        best_dy = best_match["y"] - best_match["start_y"]
+        # 3. 추정 적도 및 추정 자전축 계산
+        equator_angle = math.degrees(math.atan2(rep_match['dy'], rep_match['dx']))
+        rotation_axis_angle = equator_angle + 90.0
 
-        equator_angle = math.degrees(math.atan2(best_dy, best_dx))
-        rotation_axis_angle = equator_angle + 90
-
-        output_match_data = []
-        for match in matches:
-            # 회전 후 좌표
-            start_rot_x, start_rot_y = rotate_point(match["start_x"], match["start_y"], center_x, center_y, equator_angle)
-            end_rot_x, end_rot_y = rotate_point(match["x"], match["y"], center_x, center_y, equator_angle)
-
-            equator_move = end_rot_x - start_rot_x
-            mean_rot_y = (start_rot_y + end_rot_y) / 2
+        output_data = []
+        result_visual = img2.copy() # 시각화는 마지막 이미지 기준
+        
+        # 4. 각 매칭된 흑점에 대해 심화 수식 적용
+        for m in matches:
+            rot_start_x, rot_start_y = rotate_point(m['start_x'], m['start_y'], TARGET_CENTER[0], TARGET_CENTER[1], equator_angle)
+            rot_end_x, rot_end_y = rotate_point(m['end_x'], m['end_y'], TARGET_CENTER[0], TARGET_CENTER[1], equator_angle)
             
-            # 태양 위도 근사 및 보정 이동각 계산
-            latitude_ratio = max(-1.0, min(1.0, mean_rot_y / TARGET_RADIUS))
+            equator_move = rot_end_x - rot_start_x
+            
+            latitude_ratio = (TARGET_CENTER[1] - rot_start_y) / TARGET_RADIUS
+            latitude_ratio = max(-1.0, min(1.0, latitude_ratio)) 
             latitude = math.degrees(math.asin(latitude_ratio))
             
             latitude_radius = TARGET_RADIUS * math.cos(math.radians(latitude))
@@ -422,28 +370,38 @@ def analyze_series():
                 rotation_angle = 0.0
             else:
                 rotation_angle = math.degrees(equator_move / latitude_radius)
-
-            output_match_data.append({
-                "id": match["id"],
-                "start_x": match["start_x"], "start_y": match["start_y"],
-                "end_x": match["x"], "end_y": match["y"],
-                "start_rot_x": round(start_rot_x, 2),
-                "start_rot_y": round(start_rot_y, 2),
-                "end_rot_x": round(end_rot_x, 2),
-                "end_rot_y": round(end_rot_y, 2),
-                "equator_move": round(equator_move, 2),
-                "latitude": round(latitude, 2),
-                "rotation_angle": round(rotation_angle, 3),
-                "center_distance": round(match["center_distance"], 2),
-                "score": round(match["score"], 3)
+            
+            output_data.append({
+                'id': m['id'],
+                'start_x': m['start_x'], 'start_y': m['start_y'],
+                'end_x': m['end_x'], 'end_y': m['end_y'],
+                'dx': m['dx'], 'dy': m['dy'],
+                'distance': m['distance'],
+                'rot_start_x': round(rot_start_x, 2), 
+                'rot_start_y': round(rot_start_y, 2),
+                'rot_end_x': round(rot_end_x, 2), 
+                'rot_end_y': round(rot_end_y, 2),
+                'equator_move': round(equator_move, 2),
+                'latitude': round(latitude, 2),
+                'rotation_angle': round(rotation_angle, 3)
             })
 
-            # 시각화 박스 및 텍스트 추가
-            cv2.arrowedLine(match_result_image, (match["start_x"], match["start_y"]), (match["x"], match["y"]), (0, 0, 255), 2, tipLength=0.3)
-            cv2.rectangle(match_result_image, (match["x"] - size, match["y"] - size), (match["x"] + size, match["y"] + size), (0, 255, 255), 2)
-            cv2.putText(match_result_image, f"ID:{match['id']}", (match["x"] - size, match["y"] - size - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 2)
+            # 시각화 (화살표, ID 텍스트)
+            cv2.arrowedLine(result_visual, (m['start_x'], m['start_y']), (m['end_x'], m['end_y']), (0, 0, 255), 2, tipLength=0.3)
+            cv2.circle(result_visual, (m['start_x'], m['start_y']), 3, (255, 0, 0), -1)
+            cv2.putText(result_visual, f"ID:{m['id']}", (m['end_x'] + 5, m['end_y'] - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
 
-        # 4. 사진별 메타데이터 작성
+        cv2.circle(result_visual, TARGET_CENTER, TARGET_RADIUS, (255, 255, 255), 1)
+        eq_len = 300
+        eq_dx = int(eq_len * math.cos(math.radians(equator_angle)))
+        eq_dy = int(eq_len * math.sin(math.radians(equator_angle)))
+        cv2.line(result_visual, (TARGET_CENTER[0]-eq_dx, TARGET_CENTER[1]-eq_dy), 
+                 (TARGET_CENTER[0]+eq_dx, TARGET_CENTER[1]+eq_dy), (0, 255, 255), 1)
+
+        _, buffer = cv2.imencode('.jpg', result_visual)
+        img_base64 = base64.b64encode(buffer).decode('utf-8')
+
+        # 5. 전체 업로드된 사진(프레임)별 메타데이터 요약본 작성
         image_summaries = []
         for data in series_data:
             image_summaries.append({
@@ -453,25 +411,23 @@ def analyze_series():
                 "spots": data["spots"]
             })
 
-        cv2.circle(match_result_image, TARGET_CENTER, TARGET_RADIUS, (255, 255, 255), 1)
-        _, buffer = cv2.imencode('.jpg', match_result_image)
-        img_base64 = base64.b64encode(buffer).decode('utf-8')
-
         return jsonify({
             'status': 'success',
             'global_info': {
-                'analyzed_count': len(series_data),               
-                'representative_spot_id': best_match["id"],       
-                'equator_angle': round(equator_angle, 2),         
-                'rotation_axis_angle': round(rotation_axis_angle, 2) 
+                'analyzed_count': len(series_data),
+                'representative_spot_id': rep_match['id'],
+                'equator_angle': round(equator_angle, 2),
+                'rotation_axis_angle': round(rotation_axis_angle, 2)
             },
-            'image_summaries': image_summaries,                   
-            'match_data': output_match_data,                      
+            'image_summaries': image_summaries, 
+            'data': output_data, 
             'image_base64': img_base64
         })
 
     except Exception as e:
-        return jsonify({'status': 'fail', 'message': f'에러 발생: {str(e)}'})
+        import traceback
+        traceback.print_exc()
+        return jsonify({'status': 'fail', 'message': f'연속 분석 중 에러 발생: {str(e)}'})
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(debug=True, port=5000)

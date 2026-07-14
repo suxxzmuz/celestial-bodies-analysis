@@ -5,366 +5,78 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ASTROVISION - SERIES IMAGE ANALYSIS</title>
     <style>
-        * { 
-            box-sizing: border-box; 
-            margin: 0; 
-            padding: 0; 
-            font-family: 'Helvetica Neue', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; 
-        }
-
-        body { 
-            background-color: #fafafa; 
-            color: #1a1a1a; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            min-height: 100vh; 
-            padding: 40px 20px; 
-            overflow-x: hidden; 
-            line-height: 1.6; 
-        }
-
-        main { 
-            width: 100%; 
-            max-width: 1100px; 
-            margin: 0 auto; 
-            display: flex; 
-            flex-direction: column; 
-            gap: 24px; 
-        }
-
-        header { 
-            width: 100%; 
-            max-width: 1100px; 
-            display: flex; 
-            align-items: center; 
-            justify-content: space-between; 
-            position: relative; 
-            padding: 10px 0 20px 0; 
-            margin-bottom: 30px; 
-            border-bottom: 2px solid #1a1a1a; 
-        }
+        /* ====================================================
+           ASTROVISION 공통 디자인 시스템 (Modern Black & White)
+           ==================================================== */
         
-        header div {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-        }
-
-        h1 { 
-            font-size: 26px; 
-            font-weight: 800; 
-            letter-spacing: 2px; 
-            text-transform: uppercase; 
-            color: #1a1a1a; 
-        }
-
-        .subtitle { 
-            font-size: 14px; 
-            font-weight: 600; 
-            color: #666; 
-            margin-top: 4px; 
-            letter-spacing: 1px; 
-        }
-
-        nav { 
-            display: flex; 
-            gap: 12px; 
-            margin-bottom: 24px; 
-            width: 100%; 
-            max-width: 1100px; 
-        }
-
-        nav a { 
-            text-decoration: none; 
-            padding: 12px 24px; 
-            border: 1px solid #d1d1d1; 
-            border-radius: 8px; 
-            color: #666; 
-            font-weight: 600; 
-            background: #ffffff; 
-            transition: all 0.2s ease; 
-        }
-
-        nav a:hover { 
-            border-color: #1a1a1a; 
-            color: #1a1a1a; 
-        }
-
-        nav a.active { 
-            background: #1a1a1a; 
-            color: #ffffff; 
-            border-color: #1a1a1a; 
-            pointer-events: none; 
-        }
-
-        .control-panel { 
-            background-color: #ffffff; 
-            border: 1px solid #eaeaea; 
-            border-radius: 12px; 
-            padding: 24px; 
-            display: flex; 
-            flex-wrap: wrap; 
-            gap: 20px; 
-            align-items: flex-end; 
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02); 
-        }
-
-        .control-group { 
-            display: flex; 
-            flex-direction: column; 
-            gap: 8px; 
-        }
-
-        .control-group label { 
-            font-size: 13px; 
-            font-weight: 700; 
-            color: #555; 
-        }
-
-        input[type="file"] { 
-            padding: 12px 16px; 
-            border: 1px solid #d1d1d1; 
-            border-radius: 8px; 
-            font-size: 14px; 
-            background-color: #ffffff; 
-            color: #1a1a1a; 
-            outline: none; 
-            transition: all 0.2s; 
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Helvetica Neue', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; }
+        body { background-color: #fafafa; color: #1a1a1a; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 40px 20px; overflow-x: hidden; line-height: 1.6; }
+        main { width: 100%; max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
         
-        input[type="file"]:focus { 
-            border-color: #1a1a1a; 
-            box-shadow: 0 0 0 3px rgba(26, 26, 26, 0.1); 
-        }
+        header { width: 100%; max-width: 1100px; display: flex; align-items: center; justify-content: space-between; position: relative; padding: 10px 0 20px 0; margin-bottom: 30px; border-bottom: 2px solid #1a1a1a; }
+        header div { display: flex; flex-direction: column; align-items: flex-start; }
+        h1 { font-size: 26px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: #1a1a1a; }
+        h1 a { text-decoration: none; color: inherit; }
+        .subtitle { font-size: 14px; font-weight: 600; color: #666; margin-top: 4px; letter-spacing: 1px; }
 
-        .btn { 
-            background-color: #1a1a1a; 
-            color: #ffffff; 
-            border: 2px solid #1a1a1a; 
-            padding: 12px 24px; 
-            border-radius: 8px; 
-            font-size: 14px; 
-            font-weight: 600; 
-            cursor: pointer; 
-            transition: all 0.2s ease; 
-            text-transform: uppercase; 
-            white-space: nowrap;
-            display: inline-flex;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-        }
+        nav { display: flex; gap: 12px; margin-bottom: 24px; width: 100%; max-width: 1100px; }
+        nav a { text-decoration: none; padding: 12px 24px; border: 1px solid #d1d1d1; border-radius: 8px; color: #666; font-weight: 600; background: #ffffff; transition: all 0.2s ease; }
+        nav a:hover { border-color: #1a1a1a; color: #1a1a1a; }
+        nav a.active { background: #1a1a1a; color: #ffffff; border-color: #1a1a1a; pointer-events: none; }
 
-        .btn:hover { 
-            background-color: #ffffff; 
-            color: #1a1a1a; 
-        }
+        .control-panel { background-color: #ffffff; border: 1px solid #eaeaea; border-radius: 12px; padding: 24px; display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-end; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02); }
+        .control-group { display: flex; flex-direction: column; gap: 8px; }
+        .control-group label { font-size: 13px; font-weight: 700; color: #555; }
+        input[type="file"], input[type="number"] { padding: 12px 16px; border: 1px solid #d1d1d1; border-radius: 8px; font-size: 14px; background-color: #ffffff; color: #1a1a1a; outline: none; transition: all 0.2s; }
+        input[type="number"] { width: 140px; }
+        input[type="file"]:focus, input[type="number"]:focus { border-color: #1a1a1a; box-shadow: 0 0 0 3px rgba(26, 26, 26, 0.1); }
 
-        .btn:disabled { 
-            background-color: #f0f0f0; 
-            border-color: #e0e0e0; 
-            color: #999; 
-            cursor: not-allowed; 
-        }
+        .btn { background-color: #1a1a1a; color: #ffffff; border: 2px solid #1a1a1a; padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; text-transform: uppercase; white-space: nowrap; }
+        .btn:hover { background-color: #ffffff; color: #1a1a1a; }
+        .btn:disabled { background-color: #f0f0f0; border-color: #e0e0e0; color: #999; cursor: not-allowed; }
+        .btn-danger { background-color: #ffffff; color: #e53935; border-color: #e53935; }
+        .btn-danger:hover { background-color: #e53935; color: #ffffff; }
 
-        .btn-danger { 
-            background-color: #ffffff; 
-            color: #e53935; 
-            border-color: #e53935; 
-        }
+        .result-container { display: flex; gap: 24px; flex-wrap: wrap; display: none; }
+        .image-view, .data-view { flex: 1; min-width: 320px; background: #ffffff; border: 1px solid #eaeaea; border-radius: 12px; padding: 24px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02); display: flex; flex-direction: column; overflow: hidden; }
+        .image-view h3 { margin-bottom: 20px; border-bottom: 1px solid #eaeaea; padding-bottom: 15px; font-size: 18px; font-weight: 700; color: #1a1a1a; text-align: center; }
+        .data-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #eaeaea; padding-bottom: 15px; width: 100%; }
+        .data-header h3 { font-size: 18px; font-weight: 700; color: #1a1a1a; margin: 0; }
+        canvas { max-width: 100%; height: auto; border-radius: 8px; border: 1px solid #eaeaea; background-color: #000; }
 
-        .btn-danger:hover { 
-            background-color: #e53935; 
-            color: #ffffff; 
-        }
+        /* 요약 대시보드 스타일 */
+        .summary-box { background: #fafafa; border: 1px solid #eaeaea; border-radius: 8px; padding: 16px; margin-bottom: 20px; }
+        .summary-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid #eaeaea; }
+        .summary-item { font-size: 14px; display: flex; justify-content: space-between; }
+        .summary-item strong { color: #1a1a1a; font-weight: 700; }
+        .image-meta-list { list-style: none; display: flex; flex-direction: column; gap: 8px; max-height: 200px; overflow-y: auto; padding-right: 5px; }
+        .image-meta-list li { font-size: 13px; color: #555; background: #fff; border: 1px solid #eaeaea; padding: 8px 12px; border-radius: 6px; }
 
-        .result-container { 
-            display: flex; 
-            gap: 24px; 
-            flex-wrap: wrap; 
-            display: none; 
-        }
+        .table-responsive { width: 100%; overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; min-width: 600px; }
+        th, td { border-bottom: 1px solid #eaeaea; padding: 12px 8px; text-align: center; font-size: 13px; }
+        th { background-color: #f9f9f9; color: #333; font-weight: 700; border-top: 2px solid #1a1a1a; white-space: nowrap; }
+        tr:hover td { background-color: #fafafa; }
+        .coord-text { font-size: 11px; color: #666; }
 
-        .image-view, .data-view { 
-            flex: 1; 
-            min-width: 320px; 
-            background: #ffffff; 
-            border: 1px solid #eaeaea; 
-            border-radius: 12px; 
-            padding: 24px; 
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02); 
-            display: flex; 
-            flex-direction: column; 
-        }
-
-        .image-view h3 {
-            margin-bottom: 20px; 
-            border-bottom: 1px solid #eaeaea; 
-            padding-bottom: 15px; 
-            font-size: 18px; 
-            font-weight: 700; 
-            color: #1a1a1a;
-            text-align: center;
-        }
-
-        .data-header { 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
-            margin-bottom: 20px; 
-            border-bottom: 1px solid #eaeaea; 
-            padding-bottom: 15px; 
-            width: 100%; 
-        }
-
-        .data-header.sub-header {
-            margin-top: 30px;
-            border-top: 1px solid #eaeaea;
-            padding-top: 20px;
-        }
-
-        .data-header h3 { 
-            font-size: 18px; 
-            font-weight: 700; 
-            color: #1a1a1a; 
-            margin: 0; 
-        }
-
-        .global-summary {
-            background-color: #f8f9fa;
-            border: 1px solid #eaeaea;
-            border-radius: 8px;
-            padding: 16px;
-            margin-bottom: 20px;
-            font-size: 14px;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-        }
-
-        .global-summary div strong {
-            color: #333;
-        }
-
-        canvas { 
-            max-width: 100%; 
-            height: auto; 
-            border-radius: 8px; 
-            border: 1px solid #eaeaea; 
-            background-color: #000;
-        }
-
-        .table-wrapper {
-            overflow-x: auto;
-        }
-
-        table { 
-            width: 100%; 
-            border-collapse: collapse; 
-            min-width: 500px;
-        }
-
-        th, td { 
-            border-bottom: 1px solid #eaeaea; 
-            padding: 14px 12px; 
-            text-align: center; 
-            font-size: 13px; 
-        }
-
-        th { 
-            background-color: #f9f9f9; 
-            color: #333; 
-            font-weight: 700; 
-            border-top: 2px solid #1a1a1a; 
-            white-space: nowrap;
-        }
-
-        tr:hover td { 
-            background-color: #fafafa; 
-        }
-
-        .rep-spot {
-            background-color: #fffdf0;
-        }
-        
-        .rep-spot td {
-            font-weight: 700;
-        }
-
-        .history-section { 
-            background: #ffffff; 
-            border: 1px solid #eaeaea; 
-            border-radius: 12px; 
-            padding: 24px; 
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02); 
-        }
-
-        .history-header { 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
-            margin-bottom: 20px; 
-            border-bottom: 1px solid #eaeaea; 
-            padding-bottom: 15px; 
-        }
-
-        .history-header h2 { 
-            font-size: 18px; 
-            font-weight: 700; 
-            color: #1a1a1a; 
-        }
-
-        .history-list { 
-            list-style: none; 
-            display: flex; 
-            flex-direction: column; 
-            gap: 12px; 
-        }
-
-        .history-list li { 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
-            background: #fafafa; 
-            border: 1px solid #eaeaea; 
-            padding: 16px 20px; 
-            border-radius: 8px; 
-            transition: all 0.2s ease; 
-        }
-
-        .history-list li:hover { 
-            border-color: #1a1a1a; 
-            background: #fff; 
-        }
-
-        .history-info { 
-            display: flex; 
-            flex-direction: column; 
-            gap: 4px; 
-        }
-
-        .history-info strong { 
-            font-size: 14px; 
-            color: #1a1a1a; 
-            font-weight: 700;
-        }
-
-        .history-info span { 
-            font-size: 13px; 
-            color: #666; 
-        }
+        .history-section { background: #ffffff; border: 1px solid #eaeaea; border-radius: 12px; padding: 24px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02); }
+        .history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #eaeaea; padding-bottom: 15px; }
+        .history-header h2 { font-size: 18px; font-weight: 700; color: #1a1a1a; }
+        .history-list { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+        .history-list li { display: flex; justify-content: space-between; align-items: center; background: #fafafa; border: 1px solid #eaeaea; padding: 16px 20px; border-radius: 8px; transition: all 0.2s ease; }
+        .history-list li:hover { border-color: #1a1a1a; background: #fff; }
+        .history-info { display: flex; flex-direction: column; gap: 4px; }
+        .history-info strong { font-size: 14px; color: #1a1a1a; font-weight: 700; }
+        .history-info span { font-size: 13px; color: #666; }
 
         @media (max-width: 768px) {
             header { flex-direction: column; align-items: flex-start; gap: 10px; }
             nav { flex-wrap: wrap; }
             .control-panel { flex-direction: column; align-items: stretch; }
-            .btn { width: 100%; }
+            input[type="number"], .btn { width: 100%; }
             .result-container { flex-direction: column; }
             .data-header { flex-direction: column; gap: 15px; align-items: flex-start; }
-            .history-list li { flex-direction: column; gap: 15px; align-items: flex-start; }
-            .history-list li .btn { width: 100%; }
-            .global-summary { grid-template-columns: 1fr; }
+            .summary-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -372,7 +84,7 @@
 
     <header>
         <div>
-            <h1><a href="/" style="text-decoration: none; color: inherit;">ASTROVISION</a></h1>
+            <h1><a href="index.html">ASTROVISION</a></h1>
             <div class="subtitle">SOLAR SERIES IMAGE ANALYSIS</div>
         </div>
     </header>
@@ -384,59 +96,51 @@
 
     <main>
         <section class="control-panel">
-            <div class="control-group" style="flex: 1;">
-                <label>연속 영상 업로드 (2장 이상의 사진을 한 번에 선택하세요)</label>
-                <input type="file" id="seriesUpload" accept="image/*" multiple onchange="resetContainer()">
+            <div class="control-group" style="flex: 1; min-width: 250px;">
+                <label>연속 영상 업로드 (2장 이상 필수)</label>
+                <input type="file" id="imageUploads" accept="image/*" multiple onchange="resetContainer()">
+                <small style="color: #666; font-size: 12px; margin-top: 4px;">※ Ctrl(또는 Shift) 키를 누르고 사진을 한 번에 여러 장 선택하세요.</small>
             </div>
-            <button class="btn" id="analyzeBtn" onclick="analyzeSeries()">연속 분석 실행</button>
+            
+            <div class="control-group">
+                <label>추적 민감도 한계값</label>
+                <input type="number" id="threshValue" value="80" min="1" max="254">
+            </div>
+            <button class="btn" id="analyzeBtn" onclick="analyzeSeries()">다중 프레임 추적 실행</button>
         </section>
 
         <section class="result-container" id="resultContainer">
             <div class="image-view">
-                <h3>흑점 이동 궤적 가시화 맵 (T1 → T2)</h3>
+                <h3>흑점 이동 궤적 가시화 맵 (처음 → 마지막)</h3>
                 <canvas id="resultCanvas"></canvas>
             </div>
             
             <div class="data-view">
                 <div class="data-header">
-                    <h3>연속 추적 및 매칭 결과</h3>
-                    <button class="btn" onclick="downloadCSV()">CSV 추출</button>
+                    <h3>심화 연산 데이터 리포트</h3>
+                    <button class="btn" onclick="downloadCSV()">CSV 통합 추출</button>
                 </div>
                 
-                <div class="global-summary" id="globalSummary">
-                    </div>
+                <div id="summaryBox" class="summary-box">
+                    <div class="summary-grid" id="globalStatsGrid">
+                        </div>
+                    <ul class="image-meta-list" id="imageMetaList">
+                        </ul>
+                </div>
 
-                <div class="table-wrapper">
+                <div class="table-responsive">
                     <table>
                         <thead>
                             <tr>
                                 <th>ID</th>
-                                <th>시작 좌표</th>
-                                <th>종료 좌표</th>
-                                <th>중심 거리(px)</th>
+                                <th>원좌표 (시작→종료)</th>
+                                <th>회전좌표 (시작→종료)</th>
                                 <th>적도 이동(px)</th>
-                                <th>추정 위도(°)</th>
-                                <th>보정 이동각(°)</th>
-                                <th>유사도</th>
+                                <th>추정 위도</th>
+                                <th>이동각</th>
                             </tr>
                         </thead>
                         <tbody id="dataTableBody"></tbody>
-                    </table>
-                </div>
-
-                <div class="data-header sub-header">
-                    <h3>개별 사진 분석 요약</h3>
-                </div>
-                <div class="table-wrapper">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>순서</th>
-                                <th>파일명</th>
-                                <th>검출된 흑점 수</th>
-                            </tr>
-                        </thead>
-                        <tbody id="summaryTableBody"></tbody>
                     </table>
                 </div>
             </div>
@@ -452,10 +156,10 @@
     </main>
 
     <script>
-        let currentMatchData = [];
+        let currentData = [];
         let currentGlobalInfo = {};
         let currentImageSummaries = [];
-        const DB_KEY = 'astrovision_continuous_db';
+        const DB_KEY = 'astrovision_series_db';
 
         document.addEventListener('DOMContentLoaded', loadHistoryFromDB);
 
@@ -464,42 +168,37 @@
         }
 
         function analyzeSeries() {
-            const fileInput = document.getElementById('seriesUpload');
-            if (fileInput.files.length < 2) {
-                alert("연속 이동량 추적을 위해 최소 2장 이상의 태양 영상을 함께 선택해 주세요.");
+            // 🚀 FileList에서 여러 장의 이미지를 가져옴
+            const files = document.getElementById('imageUploads').files;
+
+            if (files.length < 2) {
+                alert("정확한 궤적 추적을 위해 최소 2장 이상의 이미지를 선택해 주세요.");
                 return;
             }
 
             const formData = new FormData();
-            for (let i = 0; i < fileInput.files.length; i++) {
-                formData.append('images', fileInput.files[i]);
+            // 루프를 돌며 모든 파일을 'images'라는 동일한 이름표로 서버에 넘김
+            for (let i = 0; i < files.length; i++) {
+                formData.append('images', files[i]);
             }
+            formData.append('threshValue', document.getElementById('threshValue').value);
 
             const btn = document.getElementById('analyzeBtn');
-            btn.innerText = "분석 중...";
+            btn.innerText = "벡터 연산 추적 중...";
             btn.disabled = true;
 
             fetch('/analyze_series', { method: 'POST', body: formData })
             .then(response => response.json())
             .then(result => {
-                btn.innerText = "연속 분석 실행";
+                btn.innerText = "다중 프레임 추적 실행";
                 btn.disabled = false;
 
                 if (result.status === 'fail') {
                     alert(result.message);
                     return;
                 }
-                
-                if (result.match_data.length === 0) {
-                    alert("매칭된 흑점 이동 궤적이 발견되지 않았습니다.");
-                    return;
-                }
 
-                currentMatchData = result.match_data;
-                currentGlobalInfo = result.global_info;
-                currentImageSummaries = result.image_summaries; // 추가된 부분
-
-                // 1. 결과 이미지 렌더링
+                // 캔버스 렌더링
                 const canvas = document.getElementById('resultCanvas');
                 const ctx = canvas.getContext('2d');
                 const img = new Image();
@@ -510,75 +209,62 @@
                 }
                 img.src = "data:image/jpeg;base64," + result.image_base64;
 
-                // 2. Global Info 렌더링
-                const summaryDiv = document.getElementById('globalSummary');
-                summaryDiv.innerHTML = `
-                    <div><strong>정상 분석 장수:</strong> ${currentGlobalInfo.analyzed_count}장</div>
-                    <div><strong>대표 흑점 ID:</strong> ${currentGlobalInfo.representative_spot_id}</div>
-                    <div><strong>추정 적도 방향:</strong> ${currentGlobalInfo.equator_angle}°</div>
-                    <div><strong>추정 자전축 방향:</strong> ${currentGlobalInfo.rotation_axis_angle}°</div>
+                currentGlobalInfo = result.global_info;
+                currentImageSummaries = result.image_summaries;
+                currentData = result.data;
+
+                // 1. 요약 대시보드 렌더링
+                document.getElementById('globalStatsGrid').innerHTML = `
+                    <div class="summary-item"><span>분석 프레임 수</span> <strong style="color:#0056b3;">${currentGlobalInfo.analyzed_count}장</strong></div>
+                    <div class="summary-item"><span>기준 대표 흑점</span> <strong>ID: ${currentGlobalInfo.representative_spot_id} 👑</strong></div>
+                    <div class="summary-item"><span>추정 적도 기울기</span> <strong>${currentGlobalInfo.equator_angle}°</strong></div>
+                    <div class="summary-item"><span>추정 자전축</span> <strong>${currentGlobalInfo.rotation_axis_angle}°</strong></div>
                 `;
 
-                // 3. Match Data Table 렌더링 (중심 거리 추가)
+                const metaList = document.getElementById('imageMetaList');
+                metaList.innerHTML = '';
+                currentImageSummaries.forEach((info) => {
+                    metaList.innerHTML += `<li>📁 <strong>[${info.filename}]</strong> : 검출 흑점 ${info.spot_count}개</li>`;
+                });
+
+                // 2. 테이블 렌더링
                 const tbody = document.getElementById('dataTableBody');
                 tbody.innerHTML = '';
 
-                currentMatchData.forEach(row => {
-                    const isRep = row.id === currentGlobalInfo.representative_spot_id;
-                    const rowClass = isRep ? 'class="rep-spot"' : '';
-                    const idText = isRep ? `★ ${row.id}` : row.id;
-                    
-                    const moveSign = row.equator_move > 0 ? '+' : '';
-                    const latSign = row.latitude > 0 ? '+' : '';
-                    const rotSign = row.rotation_angle > 0 ? '+' : '';
-
+                currentData.forEach(row => {
+                    const isRep = row.id === currentGlobalInfo.representative_spot_id ? ' 👑' : '';
                     tbody.innerHTML += `
-                        <tr ${rowClass}>
-                            <td>${idText}</td>
-                            <td>(${row.start_x}, ${row.start_y})</td>
-                            <td>(${row.end_x}, ${row.end_y})</td>
-                            <td>${row.center_distance}</td>
-                            <td style="color: ${row.equator_move > 0 ? '#1976d2' : '#d32f2f'};">${moveSign}${row.equator_move}</td>
-                            <td>${latSign}${row.latitude}°</td>
-                            <td>${rotSign}${row.rotation_angle}°</td>
-                            <td>${row.score.toFixed(2)}</td>
-                        </tr>
-                    `;
-                });
-
-                // 4. 개별 사진 분석 요약 테이블 렌더링 (새롭게 추가된 기능)
-                const summaryTbody = document.getElementById('summaryTableBody');
-                summaryTbody.innerHTML = '';
-                
-                currentImageSummaries.forEach(info => {
-                    summaryTbody.innerHTML += `
                         <tr>
-                            <td>${info.index}</td>
-                            <td>${info.filename}</td>
-                            <td>${info.spot_count}개</td>
+                            <td style="font-weight:bold;">${row.id}${isRep}</td>
+                            <td class="coord-text">(${row.start_x}, ${row.start_y})<br>→ (${row.end_x}, ${row.end_y})</td>
+                            <td class="coord-text">(${row.rot_start_x}, ${row.rot_start_y})<br>→ (${row.rot_end_x}, ${row.rot_end_y})</td>
+                            <td style="color:#0056b3; font-weight:bold;">${row.equator_move}</td>
+                            <td>${row.latitude}°</td>
+                            <td style="color:#d32f2f; font-weight:bold;">${row.rotation_angle}°</td>
                         </tr>
                     `;
                 });
 
                 document.getElementById('resultContainer').style.display = 'flex';
-                saveToDB(currentGlobalInfo, currentMatchData);
+                
+                // DB 저장
+                saveToDB({
+                    global: currentGlobalInfo,
+                    summaries: currentImageSummaries,
+                    data: currentData
+                });
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert("연속 분석 서버 통신 중 오류가 발생했습니다.");
-                btn.innerText = "연속 분석 실행";
+                alert("서버 연속 영상 엔진 통신 중 에러가 발생했습니다.");
+                btn.innerText = "다중 프레임 추적 실행";
                 btn.disabled = false;
             });
         }
 
-        function saveToDB(globalInfo, matchData) {
+        function saveToDB(fullData) {
             const history = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
-            const record = { 
-                id: Date.now(), 
-                date: new Date().toLocaleString('ko-KR'), 
-                spots: matchData.length,
-                analyzed_count: globalInfo.analyzed_count
-            };
+            const record = { id: Date.now(), date: new Date().toLocaleString('ko-KR'), payload: fullData };
             history.unshift(record);
             localStorage.setItem(DB_KEY, JSON.stringify(history));
             loadHistoryFromDB();
@@ -588,53 +274,65 @@
             const history = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
             const listObj = document.getElementById('historyList');
             listObj.innerHTML = '';
-            
+
             if(history.length === 0) {
                 listObj.innerHTML = '<li style="justify-content:center; color:#666;">저장된 연속 분석 추적 데이터 로그가 없습니다.</li>';
                 return;
             }
             
             history.forEach(item => {
+                const repID = item.payload.global ? item.payload.global.representative_spot_id : '-';
+                const matchCount = item.payload.data ? item.payload.data.length : 0;
+                const frames = item.payload.global ? item.payload.global.analyzed_count : 2;
                 listObj.innerHTML += `
                     <li>
                         <div class="history-info">
-                            <strong>분석 일시: ${item.date}</strong>
-                            <span>분석 장수: ${item.analyzed_count}장 | 매칭 확정 흑점: ${item.spots}개</span>
+                            <strong>추적 일시: ${item.date}</strong>
+                            <span>분석 ${frames}장 | 매칭 흑점: ${matchCount}개 | 대표 흑점 ID: ${repID}</span>
                         </div>
                     </li>
                 `;
             });
         }
 
+        function clearDB() {
+            if(confirm('모든 연속 영상 분석 데이터 로그를 초기화하시겠습니까?')) {
+                localStorage.removeItem(DB_KEY);
+                loadHistoryFromDB();
+            }
+        }
+
         function downloadCSV() {
-            if(currentMatchData.length === 0) return;
+            if(currentData.length === 0) return;
             
-            let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
-            
-            // 전역 요약 정보
+            let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; 
+
+            // 1. 전역 요약 정보
             csvContent += "[전역 요약 정보]\r\n";
-            csvContent += "분석장수,추정적도,추정자전축,대표흑점ID\r\n";
+            csvContent += "정상 분석장수,추정 적도 기울기(°),추정 자전축(°),대표 흑점 ID\r\n";
             csvContent += `${currentGlobalInfo.analyzed_count},${currentGlobalInfo.equator_angle},${currentGlobalInfo.rotation_axis_angle},${currentGlobalInfo.representative_spot_id}\r\n\r\n`;
 
-            // 개별 이미지 메타데이터 요약 추가
-            csvContent += "[개별 이미지 요약]\r\n";
-            csvContent += "순번,파일명,검출된 흑점 수\r\n";
-            currentImageSummaries.forEach(info => {
-                csvContent += `${info.index},${info.filename},${info.spot_count}\r\n`;
+            // 2. 사진별 메타데이터
+            csvContent += "[개별 프레임 메타데이터 (시간순 정렬)]\r\n";
+            csvContent += "순번,사진 이름,검출 흑점 수,개별 좌표 목록 (cx cy)\r\n";
+            currentImageSummaries.forEach(img => {
+                const spotsStr = img.spots.map(s => `(${s.cx} ${s.cy})`).join(' | ');
+                csvContent += `${img.index},${img.filename},${img.spot_count},${spotsStr}\r\n`;
             });
             csvContent += "\r\n";
 
-            // 매칭 세부 데이터 (중심 거리 추가)
-            csvContent += "[흑점 매칭 세부 데이터]\r\n";
-            csvContent += "ID,원본_시작X,원본_시작Y,원본_종료X,원본_종료Y,중심거리(px),회전후_시작X,회전후_시작Y,회전후_종료X,회전후_종료Y,적도방향이동량(px),추정위도(°),보정이동각(°),유사도\r\n";
+            // 3. 심화 매칭 연산 데이터
+            csvContent += "[처음 프레임 ↔ 마지막 프레임 매칭 데이터]\r\n";
+            csvContent += "ID,원좌표(시작X),원좌표(시작Y),원좌표(종료X),원좌표(종료Y),직선거리(px),X이동량,Y이동량,회전후좌표(시작X),회전후좌표(시작Y),회전후좌표(종료X),회전후좌표(종료Y),적도방향 이동량(px),추정 위도(°),보정 이동각(°)\r\n";
             
-            currentMatchData.forEach(r => {
-                csvContent += `${r.id},${r.start_x},${r.start_y},${r.end_x},${r.end_y},${r.center_distance},${r.start_rot_x},${r.start_rot_y},${r.end_rot_x},${r.end_rot_y},${r.equator_move},${r.latitude},${r.rotation_angle},${r.score}\r\n`;
+            currentData.forEach(r => {
+                csvContent += `${r.id},${r.start_x},${r.start_y},${r.end_x},${r.end_y},${r.distance},${r.dx},${r.dy},${r.rot_start_x},${r.rot_start_y},${r.rot_end_x},${r.rot_end_y},${r.equator_move},${r.latitude},${r.rotation_angle}\r\n`;
             });
-            
+
+            const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
-            link.setAttribute("href", encodeURI(csvContent));
-            link.setAttribute("download", `solar_continuous_track_data.csv`);
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "astrovision_multiframes_tracking.csv");
             document.body.appendChild(link);
             link.click();
             link.remove();
