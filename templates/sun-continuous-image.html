@@ -150,7 +150,6 @@
             transition: all 0.2s ease; 
             text-transform: uppercase; 
             white-space: nowrap;
-            /* 글씨를 항상 정중앙에 고정 */
             display: inline-flex;
             justify-content: center;
             align-items: center;
@@ -219,6 +218,12 @@
             width: 100%; 
         }
 
+        .data-header.sub-header {
+            margin-top: 30px;
+            border-top: 1px solid #eaeaea;
+            padding-top: 20px;
+        }
+
         .data-header h3 { 
             font-size: 18px; 
             font-weight: 700; 
@@ -272,6 +277,7 @@
             color: #333; 
             font-weight: 700; 
             border-top: 2px solid #1a1a1a; 
+            white-space: nowrap;
         }
 
         tr:hover td { 
@@ -398,8 +404,7 @@
                 </div>
                 
                 <div class="global-summary" id="globalSummary">
-                    <!-- 전역 변수 결과 렌더링 영역 -->
-                </div>
+                    </div>
 
                 <div class="table-wrapper">
                     <table>
@@ -408,6 +413,7 @@
                                 <th>ID</th>
                                 <th>시작 좌표</th>
                                 <th>종료 좌표</th>
+                                <th>중심 거리(px)</th>
                                 <th>적도 이동(px)</th>
                                 <th>추정 위도(°)</th>
                                 <th>보정 이동각(°)</th>
@@ -415,6 +421,22 @@
                             </tr>
                         </thead>
                         <tbody id="dataTableBody"></tbody>
+                    </table>
+                </div>
+
+                <div class="data-header sub-header">
+                    <h3>개별 사진 분석 요약</h3>
+                </div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>순서</th>
+                                <th>파일명</th>
+                                <th>검출된 흑점 수</th>
+                            </tr>
+                        </thead>
+                        <tbody id="summaryTableBody"></tbody>
                     </table>
                 </div>
             </div>
@@ -432,6 +454,7 @@
     <script>
         let currentMatchData = [];
         let currentGlobalInfo = {};
+        let currentImageSummaries = [];
         const DB_KEY = 'astrovision_continuous_db';
 
         document.addEventListener('DOMContentLoaded', loadHistoryFromDB);
@@ -474,6 +497,7 @@
 
                 currentMatchData = result.match_data;
                 currentGlobalInfo = result.global_info;
+                currentImageSummaries = result.image_summaries; // 추가된 부분
 
                 // 1. 결과 이미지 렌더링
                 const canvas = document.getElementById('resultCanvas');
@@ -495,7 +519,7 @@
                     <div><strong>추정 자전축 방향:</strong> ${currentGlobalInfo.rotation_axis_angle}°</div>
                 `;
 
-                // 3. Data Table 렌더링
+                // 3. Match Data Table 렌더링 (중심 거리 추가)
                 const tbody = document.getElementById('dataTableBody');
                 tbody.innerHTML = '';
 
@@ -513,10 +537,25 @@
                             <td>${idText}</td>
                             <td>(${row.start_x}, ${row.start_y})</td>
                             <td>(${row.end_x}, ${row.end_y})</td>
+                            <td>${row.center_distance}</td>
                             <td style="color: ${row.equator_move > 0 ? '#1976d2' : '#d32f2f'};">${moveSign}${row.equator_move}</td>
                             <td>${latSign}${row.latitude}°</td>
                             <td>${rotSign}${row.rotation_angle}°</td>
                             <td>${row.score.toFixed(2)}</td>
+                        </tr>
+                    `;
+                });
+
+                // 4. 개별 사진 분석 요약 테이블 렌더링 (새롭게 추가된 기능)
+                const summaryTbody = document.getElementById('summaryTableBody');
+                summaryTbody.innerHTML = '';
+                
+                currentImageSummaries.forEach(info => {
+                    summaryTbody.innerHTML += `
+                        <tr>
+                            <td>${info.index}</td>
+                            <td>${info.filename}</td>
+                            <td>${info.spot_count}개</td>
                         </tr>
                     `;
                 });
@@ -567,25 +606,30 @@
             });
         }
 
-        function clearDB() {
-            if(confirm('모든 연속 영상 분석 데이터 로그를 초기화하시겠습니까?')) {
-                localStorage.removeItem(DB_KEY);
-                loadHistoryFromDB();
-            }
-        }
-
         function downloadCSV() {
             if(currentMatchData.length === 0) return;
             
-            // CSV 헤더 구성
             let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+            
+            // 전역 요약 정보
+            csvContent += "[전역 요약 정보]\r\n";
             csvContent += "분석장수,추정적도,추정자전축,대표흑점ID\r\n";
             csvContent += `${currentGlobalInfo.analyzed_count},${currentGlobalInfo.equator_angle},${currentGlobalInfo.rotation_axis_angle},${currentGlobalInfo.representative_spot_id}\r\n\r\n`;
 
-            csvContent += "ID,원본_시작X,원본_시작Y,원본_종료X,원본_종료Y,회전후_시작X,회전후_시작Y,회전후_종료X,회전후_종료Y,적도방향이동량(px),추정위도(°),보정이동각(°),유사도\r\n";
+            // 개별 이미지 메타데이터 요약 추가
+            csvContent += "[개별 이미지 요약]\r\n";
+            csvContent += "순번,파일명,검출된 흑점 수\r\n";
+            currentImageSummaries.forEach(info => {
+                csvContent += `${info.index},${info.filename},${info.spot_count}\r\n`;
+            });
+            csvContent += "\r\n";
+
+            // 매칭 세부 데이터 (중심 거리 추가)
+            csvContent += "[흑점 매칭 세부 데이터]\r\n";
+            csvContent += "ID,원본_시작X,원본_시작Y,원본_종료X,원본_종료Y,중심거리(px),회전후_시작X,회전후_시작Y,회전후_종료X,회전후_종료Y,적도방향이동량(px),추정위도(°),보정이동각(°),유사도\r\n";
             
             currentMatchData.forEach(r => {
-                csvContent += `${r.id},${r.start_x},${r.start_y},${r.end_x},${r.end_y},${r.start_rot_x},${r.start_rot_y},${r.end_rot_x},${r.end_rot_y},${r.equator_move},${r.latitude},${r.rotation_angle},${r.score}\r\n`;
+                csvContent += `${r.id},${r.start_x},${r.start_y},${r.end_x},${r.end_y},${r.center_distance},${r.start_rot_x},${r.start_rot_y},${r.end_rot_x},${r.end_rot_y},${r.equator_move},${r.latitude},${r.rotation_angle},${r.score}\r\n`;
             });
             
             const link = document.createElement("a");
