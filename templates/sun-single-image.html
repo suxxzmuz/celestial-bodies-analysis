@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASTROVISION - SINGLE IMAGE ANALYSIS</title>
+    <style>
+        * { 
+            box-sizing: border-box; 
+            margin: 0; 
+            padding: 0; 
+            font-family: 'Helvetica Neue', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; 
+        }
+
+        body { 
+            background-color: #fafafa; 
+            color: #1a1a1a; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            min-height: 100vh; 
+            padding: 40px 20px; 
+            overflow-x: hidden; 
+            line-height: 1.6; 
+        }
+
+        main { 
+            width: 100%; 
+            max-width: 1100px; 
+            margin: 0 auto; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 24px; 
+        }
+
+        header { 
+            width: 100%; 
+            max-width: 1100px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between; 
+            position: relative; 
+            padding: 10px 0 20px 0; 
+            margin-bottom: 30px; 
+            border-bottom: 2px solid #1a1a1a; 
+        }
+        
+        header div {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        h1 { 
+            font-size: 26px; 
+            font-weight: 800; 
+            letter-spacing: 2px; 
+            text-transform: uppercase; 
+            color: #1a1a1a; 
+        }
+
+        .subtitle { 
+            font-size: 14px; 
+            font-weight: 600; 
+            color: #666; 
+            margin-top: 4px; 
+            letter-spacing: 1px; 
+        }
+
+        nav { 
+            display: flex; 
+            gap: 12px; 
+            margin-bottom: 24px; 
+            width: 100%; 
+            max-width: 1100px; 
+        }
+
+        nav a { 
+            text-decoration: none; 
+            padding: 12px 24px; 
+            border: 1px solid #d1d1d1; 
+            border-radius: 8px; 
+            color: #666; 
+            font-weight: 600; 
+            background: #ffffff; 
+            transition: all 0.2s ease; 
+        }
+
+        nav a:hover { 
+            border-color: #1a1a1a; 
+            color: #1a1a1a; 
+        }
+
+        nav a.active { 
+            background: #1a1a1a; 
+            color: #ffffff; 
+            border-color: #1a1a1a; 
+            pointer-events: none; 
+        }
+
+        .control-panel { 
+            background-color: #ffffff; 
+            border: 1px solid #eaeaea; 
+            border-radius: 12px; 
+            padding: 24px; 
+            display: flex; 
+            flex-wrap: wrap; 
+            gap: 20px; 
+            align-items: flex-end; 
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02); 
+        }
+
+        .control-group { 
+            display: flex; 
+            flex-direction: column; 
+            gap: 8px; 
+        }
+
+        .control-group label { 
+            font-size: 13px; 
+            font-weight: 700; 
+            color: #555; 
+        }
+
+        input[type="file"], input[type="number"] { 
+            padding: 12px 16px; 
+            border: 1px solid #d1d1d1; 
+            border-radius: 8px; 
+            font-size: 14px; 
+            background-color: #ffffff; 
+            color: #1a1a1a; 
+            outline: none; 
+            transition: all 0.2s; 
+        }
+
+        input[type="number"] { width: 140px; }
+        
+        input[type="file"]:focus, input[type="number"]:focus { 
+            border-color: #1a1a1a; 
+            box-shadow: 0 0 0 3px rgba(26, 26, 26, 0.1); 
+        }
+
+        .btn { 
+            background-color: #1a1a1a; 
+            color: #ffffff; 
+            border: 2px solid #1a1a1a; 
+            padding: 12px 24px; 
+            border-radius: 8px; 
+            font-size: 14px; 
+            font-weight: 600; 
+            cursor: pointer; 
+            transition: all 0.2s ease; 
+            text-transform: uppercase; 
+            white-space: nowrap;
+        }
+
+        .btn:hover { 
+            background-color: #ffffff; 
+            color: #1a1a1a; 
+        }
+
+        .btn:disabled { 
+            background-color: #f0f0f0; 
+            border-color: #e0e0e0; 
+            color: #999; 
+            cursor: not-allowed; 
+        }
+
+        .btn-danger { 
+            background-color: #ffffff; 
+            color: #e53935; 
+            border-color: #e53935; 
+        }
+
+        .btn-danger:hover { 
+            background-color: #e53935; 
+            color: #ffffff; 
+        }
+
+        .result-container { 
+            display: flex; 
+            gap: 24px; 
+            flex-wrap: wrap; 
+            display: none; 
+        }
+
+        .image-view, .data-view { 
+            flex: 1; 
+            min-width: 320px; 
+            background: #ffffff; 
+            border: 1px solid #eaeaea; 
+            border-radius: 12px; 
+            padding: 24px; 
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02); 
+            display: flex; 
+            flex-direction: column; 
+        }
+
+        .image-view h3 {
+            margin-bottom: 20px; 
+            border-bottom: 1px solid #eaeaea; 
+            padding-bottom: 15px; 
+            font-size: 18px; 
+            font-weight: 700; 
+            color: #1a1a1a;
+            text-align: center;
+        }
+
+        .data-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 20px; 
+            border-bottom: 1px solid #eaeaea; 
+            padding-bottom: 15px; 
+            width: 100%; 
+        }
+
+        .data-header h3 { 
+            font-size: 18px; 
+            font-weight: 700; 
+            color: #1a1a1a; 
+            margin: 0; 
+        }
+
+        canvas { 
+            max-width: 100%; 
+            height: auto; 
+            border-radius: 8px; 
+            border: 1px solid #eaeaea; 
+            background-color: #000;
+        }
+
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+        }
+
+        th, td { 
+            border-bottom: 1px solid #eaeaea; 
+            padding: 14px 12px; 
+            text-align: center; 
+            font-size: 14px; 
+        }
+
+        th { 
+            background-color: #f9f9f9; 
+            color: #333; 
+            font-weight: 700; 
+            border-top: 2px solid #1a1a1a; 
+        }
+
+        tr:hover td { 
+            background-color: #fafafa; 
+        }
+
+        .history-section { 
+            background: #ffffff; 
+            border: 1px solid #eaeaea; 
+            border-radius: 12px; 
+            padding: 24px; 
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02); 
+        }
+
+        .history-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 20px; 
+            border-bottom: 1px solid #eaeaea; 
+            padding-bottom: 15px; 
+        }
+
+        .history-header h2 { 
+            font-size: 18px; 
+            font-weight: 700; 
+            color: #1a1a1a; 
+        }
+
+        .history-list { 
+            list-style: none; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 12px; 
+        }
+
+        .history-list li { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            background: #fafafa; 
+            border: 1px solid #eaeaea; 
+            padding: 16px 20px; 
+            border-radius: 8px; 
+            transition: all 0.2s ease; 
+        }
+
+        .history-list li:hover { 
+            border-color: #1a1a1a; 
+            background: #fff; 
+        }
+
+        .history-info { 
+            display: flex; 
+            flex-direction: column; 
+            gap: 4px; 
+        }
+
+        .history-info strong { 
+            font-size: 14px; 
+            color: #1a1a1a; 
+            font-weight: 700;
+        }
+
+        .history-info span { 
+            font-size: 13px; 
+            color: #666; 
+        }
+
+        @media (max-width: 768px) {
+            header { flex-direction: column; align-items: flex-start; gap: 10px; }
+            nav { flex-wrap: wrap; }
+            .control-panel { flex-direction: column; align-items: stretch; }
+            input[type="number"], .btn { width: 100%; }
+            .result-container { flex-direction: column; }
+            .data-header { flex-direction: column; gap: 15px; align-items: flex-start; }
+            .history-list li { flex-direction: column; gap: 15px; align-items: flex-start; }
+            .history-list li .btn { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div>
+            <h1><a href="/" style="text-decoration: none; color: inherit;">ASTROVISION</a></h1>
+            <div class="subtitle">SOLAR SINGLE IMAGE ANALYSIS</div>
+        </div>
+    </header>
+
+    <nav>
+        <a href="/sun-single-image" class="active">1. 단일 영상 분석</a>
+        <a href="/sun-continuous-image">2. 연속 영상 분석</a>
+    </nav>
+
+    <main>
+        <section class="control-panel">
+            <div class="control-group">
+                <label>태양 이미지 업로드</label>
+                <input type="file" id="imageUpload" accept="image/*" onchange="resetContainer()">
+            </div>
+            <div class="control-group">
+                <label>민감도 (어두움 한계값)</label>
+                <input type="number" id="threshValue" value="80" min="1" max="254">
+            </div>
+            <div class="control-group">
+                <label>최소 흑점 크기 (px²)</label>
+                <input type="number" id="minSpotSize" value="3" min="1">
+            </div>
+            <button class="btn" id="analyzeBtn" onclick="analyzeSingle()">분석 실행</button>
+        </section>
+
+        <section class="result-container" id="resultContainer">
+            <div class="image-view">
+                <h3>OpenCV 데이터 가시화 이미지</h3>
+                <canvas id="resultCanvas"></canvas>
+            </div>
+            
+            <div class="data-view">
+                <div class="data-header">
+                    <h3>검출 분석 데이터 리스트</h3>
+                    <button class="btn" onclick="downloadCSV()">CSV 추출</button>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>번호</th>
+                            <th>중심 좌표 (x, y)</th>
+                            <th>면적 (px²)</th>
+                            <th>태양 대비 비율</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dataTableBody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="history-section">
+            <div class="history-header">
+                <h2>단일 이미지 분석 히스토리 로그 (DB)</h2>
+                <button class="btn btn-danger" onclick="clearDB()">로그 초기화</button>
+            </div>
+            <ul class="history-list" id="historyList"></ul>
+        </section>
+    </main>
+
+    <script>
+        let currentData = [];
+        const DB_KEY = 'astrovision_single_db';
+
+        document.addEventListener('DOMContentLoaded', loadHistoryFromDB);
+
+        function resetContainer() {
+            document.getElementById('resultContainer').style.display = 'none';
+        }
+
+        // 핵심 기능: 파이썬 서버와 실제 영상처리 통신 연동
+        function analyzeSingle() {
+            const fileInput = document.getElementById('imageUpload');
+            if (!fileInput.files[0]) {
+                alert("태양 이미지 분석 파일을 선택해 주세요.");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('image', fileInput.files[0]);
+            formData.append('threshValue', document.getElementById('threshValue').value);
+            formData.append('minSpotSize', document.getElementById('minSpotSize').value);
+
+            const btn = document.getElementById('analyzeBtn');
+            btn.innerText = "OpenCV 연산 중...";
+            btn.disabled = true;
+
+            fetch('/analyze_single', { method: 'POST', body: formData })
+            .then(response => response.json())
+            .then(result => {
+                btn.innerText = "분석 실행";
+                btn.disabled = false;
+
+                if (result.status === 'fail') {
+                    alert(result.message);
+                    return;
+                }
+
+                // 캔버스 엘리먼트에 파이썬이 연산 후 렌더링한 이미지 주입
+                const canvas = document.getElementById('resultCanvas');
+                const ctx = canvas.getContext('2d');
+                const img = new Image();
+                
+                img.onload = function() {
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    ctx.drawImage(img, 0, 0);
+                }
+                img.src = "data:image/jpeg;base64," + result.image_base64;
+
+                // 파이썬 산출 배열 데이터 테이블 매핑
+                currentData = result.data;
+                const tbody = document.getElementById('dataTableBody');
+                tbody.innerHTML = '';
+
+                currentData.forEach(row => {
+                    tbody.innerHTML += `
+                        <tr>
+                            <td>${row.id}</td>
+                            <td>(${row.cx}, ${row.cy})</td>
+                            <td>${row.area}</td>
+                            <td>${row.ratio} %</td>
+                        </tr>
+                    `;
+                });
+
+                document.getElementById('resultContainer').style.display = 'flex';
+                saveToDB(currentData);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert("서버 인라인 통신 중 예외 에러가 발생했습니다.");
+                btn.innerText = "분석 실행";
+                btn.disabled = false;
+            });
+        }
+
+        function saveToDB(data) {
+            const history = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
+            const record = { id: Date.now(), date: new Date().toLocaleString('ko-KR'), data: data };
+            history.unshift(record);
+            localStorage.setItem(DB_KEY, JSON.stringify(history));
+            loadHistoryFromDB();
+        }
+
+        function loadHistoryFromDB() {
+            const history = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
+            const listObj = document.getElementById('historyList');
+            listObj.innerHTML = '';
+
+            if(history.length === 0) {
+                listObj.innerHTML = '<li style="justify-content:center; color:#666;">저장된 로컬 DB 데이터가 비어 있습니다.</li>';
+                return;
+            }
+
+            history.forEach(item => {
+                listObj.innerHTML += `
+                    <li>
+                        <div class="history-info">
+                            <strong>기록 시간: ${item.date}</strong>
+                            <span>검출 총 개수: ${item.data.length} 개</span>
+                        </div>
+                        <button class="btn" style="padding: 6px 12px; font-size:12px;" onclick="downloadJSON(${item.id})">JSON 출력</button>
+                    </li>
+                `;
+            });
+        }
+
+        function clearDB() {
+            if(confirm('모든 데이터 기록을 초기화하시겠습니까?')) {
+                localStorage.removeItem(DB_KEY);
+                loadHistoryFromDB();
+            }
+        }
+
+        function downloadCSV() {
+            if(currentData.length === 0) return;
+            let csvContent = "data:text/csv;charset=utf-8,\uFEFF번호,중심X,중심Y,면적(px^2),태양대비(%)\r\n";
+            currentData.forEach(row => {
+                csvContent += `${row.id},${row.cx},${row.cy},${row.area},${row.ratio}\r\n`;
+            });
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `solar_analysis_report.csv`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        }
+
+        function downloadJSON(id) {
+            const history = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
+            const target = history.find(item => item.id === id);
+            if(!target) return;
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(target.data, null, 2));
+            const link = document.createElement("a");
+            link.setAttribute("href", dataStr);
+            link.setAttribute("download", `solar_report_${id}.json`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        }
+    </script>
+</body>
+</html>

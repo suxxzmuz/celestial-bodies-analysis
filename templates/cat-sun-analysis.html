@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASTROVISION - SUN ANALYSIS</title>
+    <style>
+        * { 
+            margin: 0; 
+            padding: 0; 
+            box-sizing: border-box; 
+            font-family: 'Helvetica Neue', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; 
+        }
+        
+        body {
+            background-color: #fafafa;
+            color: #1a1a1a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 40px 20px;
+            overflow-x: hidden; 
+            line-height: 1.6;
+        }
+
+        .container { 
+            width: 100%; 
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        header {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            padding: 10px 0 20px 0;
+            margin-bottom: 50px;
+            border-bottom: 2px solid #1a1a1a;
+        }
+
+        h1 { 
+            font-size: 26px; 
+            font-weight: 800; 
+            letter-spacing: 2px; 
+            text-transform: uppercase; 
+            text-align: center;
+        }
+
+        h1 a {
+            text-decoration: none;
+            color: #1a1a1a;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        h1 a:hover {
+            opacity: 0.7;
+        }
+
+        .selection-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 24px;
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background-color: #ffffff;
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+            padding: 60px 40px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            text-decoration: none; 
+            color: #1a1a1a;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+            cursor: pointer;
+            min-height: 320px;
+        }
+
+        .card:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
+            border-color: #1a1a1a;
+        }
+
+        .card h2 { 
+            font-size: 22px; 
+            margin-bottom: 16px; 
+            font-weight: 700;
+        }
+        
+        .card p { 
+            font-size: 15px; 
+            line-height: 1.6; 
+            color: #666; 
+        }
+
+        .icon-placeholder {
+            width: 70px; 
+            height: 70px; 
+            border: 2px solid #1a1a1a;
+            border-radius: 50%; 
+            margin-bottom: 24px;
+            display: flex; 
+            align-items: center; 
+            justify-content: center;
+            font-size: 24px; 
+            font-weight: bold;
+            color: #1a1a1a;
+        }
+
+        @media (max-width: 768px) {
+            .selection-grid { grid-template-columns: 1fr; }
+            h1 { font-size: 22px; }
+            .card { min-height: 250px; padding: 40px 20px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>
+                <a href="/">ASTROVISION</a>
+            </h1>
+        </header>
+
+        <div class="selection-grid">
+            
+            <a href="/sun-single-image" class="card">
+                <div class="icon-placeholder">1</div>
+                <h2>단일 영상 분석</h2>
+                <p>한 장의 태양 이미지를 업로드하여<br>흑점의 좌표와 면적을 정밀하게 검출합니다.</p>
+            </a>
+
+            <a href="/sun-continuous-image" class="card">
+                <div class="icon-placeholder">2</div>
+                <h2>연속 영상 분석</h2>
+                <p>여러 장의 이미지를 순차적으로 비교하여<br>흑점의 이동 궤적과 속도를 추적합니다.</p>
+            </a>
+
+        </div>
+    </div>
+
+</body>
+</html>
