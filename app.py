@@ -64,7 +64,7 @@ def series_page():
     return render_template('sun-continuous-image.html')
 
 # ==========================================
-# 커뮤니티 게시판 DB 통신 API
+#커뮤니티 게시판 DB 통신 API
 # ==========================================
 @app.route('/api/posts', methods=['GET'])
 def get_posts():
@@ -148,13 +148,6 @@ def analyze_single():
             31, thresh_param
         )
         spots = cv2.bitwise_and(spots, spots, mask=mask)
-
-        # =========================================================
-        # [수정 1] 노이즈 제거: 단일 영상 분석 시 모폴로지 연산 추가
-        # =========================================================
-        kernel = np.ones((3, 3), np.uint8)
-        spots = cv2.morphologyEx(spots, cv2.MORPH_OPEN, kernel, iterations=1)
-        # =========================================================
 
         contours, _ = cv2.findContours(spots, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -298,25 +291,13 @@ def analyze_series():
             
             spots_mask = cv2.adaptiveThreshold(masked, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 31, 8)
             spots_mask = cv2.bitwise_and(spots_mask, spots_mask, mask=mask)
-
-            # =========================================================
-            # [수정 2] 노이즈 제거: 연속 영상 분석 시 모폴로지 연산 추가
-            # =========================================================
-            kernel_series = np.ones((3, 3), np.uint8)
-            spots_mask = cv2.morphologyEx(spots_mask, cv2.MORPH_OPEN, kernel_series, iterations=1)
-            # =========================================================
-
             contours, _ = cv2.findContours(spots_mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
 
             spot_list = []
             for contour in contours:
                 area = cv2.contourArea(contour)
-                # =========================================================
-                # [수정 3] 연속 영상 분석 시 노이즈 면적 필터링 기준 강화 (2 -> 10으로 변경)
-                # =========================================================
-                if area < 10 or area > 500:
+                if area < 2 or area > 500:
                     continue
-                # =========================================================
                 moments = cv2.moments(contour)
                 if moments["m00"] == 0:
                     continue
@@ -384,7 +365,7 @@ def analyze_series():
                     best_candidate_index = candidate_index
                     best_candidate = candidate
 
-            # 유사도 0.7 이상인 매칭만 자동 확정 처리
+            # 유사도 0.7 이상인 매칭만 자동 확정 처리 (y/n 콘솔 입력 대체)
             if best_candidate is not None and best_score >= 0.70:
                 used_candidates.add(best_candidate_index)
                 matches.append({
@@ -450,30 +431,31 @@ def analyze_series():
             cv2.rectangle(match_result_image, (match["x"] - size, match["y"] - size), (match["x"] + size, match["y"] + size), (0, 255, 255), 2)
             cv2.putText(match_result_image, f"ID:{match['id']}", (match["x"] - size, match["y"] - size - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 2)
 
-        # 4. 사진별 메타데이터 작성
+        # 4. 사진별 메타데이터 작성 (요청하신 정상 장수, 사진 이름, 검출 흑점 수, 좌표)
         image_summaries = []
         for data in series_data:
             image_summaries.append({
                 "index": data["index"],
                 "filename": data["filename"],
                 "spot_count": len(data["spots"]),
-                "spots": data["spots"]
+                "spots": data["spots"] # {x, y, area} 리스트
             })
 
         cv2.circle(match_result_image, TARGET_CENTER, TARGET_RADIUS, (255, 255, 255), 1)
         _, buffer = cv2.imencode('.jpg', match_result_image)
         img_base64 = base64.b64encode(buffer).decode('utf-8')
 
+        # 프론트엔드로 전달할 JSON 데이터 구조
         return jsonify({
             'status': 'success',
             'global_info': {
-                'analyzed_count': len(series_data),               
-                'representative_spot_id': best_match["id"],       
-                'equator_angle': round(equator_angle, 2),         
-                'rotation_axis_angle': round(rotation_axis_angle, 2) 
+                'analyzed_count': len(series_data),               # 정상 분석된 사진 장수
+                'representative_spot_id': best_match["id"],       # 대표 흑점 ID
+                'equator_angle': round(equator_angle, 2),         # 추정 적도(°)
+                'rotation_axis_angle': round(rotation_axis_angle, 2) # 추정 자전축(°)
             },
-            'image_summaries': image_summaries,                   
-            'match_data': output_match_data,                      
+            'image_summaries': image_summaries,                   # 사진 이름, 검출 흑점 수, 흑점 개별 좌표 배열
+            'match_data': output_match_data,                      # 회전 후 좌표, 이동량, 위도, 보정 이동각 배열
             'image_base64': img_base64
         })
 
