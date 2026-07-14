@@ -110,6 +110,7 @@ def analyze_single():
         return jsonify({'status': 'fail', 'message': '선택된 파일이 없습니다.'})
 
     try:
+        # 1. 이미지 로드 및 크기 조정 (원본 main_single 변환 로직 반영)
         file_bytes = np.frombuffer(file.read(), np.uint8)
         image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
         if image is None:
@@ -119,6 +120,7 @@ def analyze_single():
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         gray_blur = cv2.GaussianBlur(gray, (5, 5), 0)
 
+        # 2. 허프 변환 기반 태양 원판 검출
         circles = cv2.HoughCircles(gray_blur, cv2.HOUGH_GRADIENT, dp=1.2, minDist=100, 
                                    param1=100, param2=30, minRadius=100, maxRadius=500)
         
@@ -129,51 +131,86 @@ def analyze_single():
         x, y, r = circles[0]
         sun_area = np.pi * (r ** 2)
 
+        # 3. 태양 마스크 및 픽셀 추출
         mask = np.zeros(gray.shape, dtype=np.uint8)
         cv2.circle(mask, (x, y), r, 255, -1)
         masked = cv2.bitwise_and(gray_blur, gray_blur, mask=mask)
         
+        # 4. 웹 프론트엔드 전송 값 받기 (기본값 설정 포함)
+        # 민감도 값을 adaptiveThreshold의 상수 C값 조절에 반영하거나 활용 가능하도록 세팅
+        thresh_param = int(request.form.get('threshValue', 8)) 
+        min_spot_size = int(request.form.get('minSpotSize', 3))
+
+        # 5. 흑점 후보 검출 (오류 수정: THRESH_BINARY_INV로 반전 필수!)
         spots = cv2.adaptiveThreshold(masked, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
-                                      cv2.THRESH_BINARY, 31, 8)
+                                      cv2.THRESH_BINARY_INV, 31, thresh_param)
         spots = cv2.bitwise_and(spots, spots, mask=mask)
 
+        # 6. 외곽선 탐지 및 1차 데이터 수집
         contours, _ = cv2.findContours(spots, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        results = image.copy()
         
-        spot_data = []
-        spot_count = 0
-        
+        spots_info = []
         for contour in contours:
             area = cv2.contourArea(contour)
-            if area < 2 or area > 1000:
+            # 웹에서 입력한 최소 크기(min_spot_size)와 원본의 최대 크기 한계 적용
+            if area < min_spot_size or area > 500:
                 continue
                 
-            spot_count += 1
             M = cv2.moments(contour)
             if M["m00"] != 0:
                 cx = int(M["m10"] / M["m00"])
                 cy = int(M["m01"] / M["m00"])
             else:
-                cx, cy = 0, 0
+                continue
 
             ratio = (area / sun_area) * 100
-            spot_data.append({
-                'id': spot_count,
+            spots_info.append({
                 'cx': cx, 'cy': cy,
                 'area': round(area, 2),
                 'ratio': round(ratio, 5)
             })
 
-            cv2.circle(results, (cx, cy), 4, (0, 0, 255), -1)
-            cv2.putText(results, str(spot_count), (cx + 5, cy - 5), 
+        # 7. [핵심] 원본의 정렬 로직 반영: X좌표 기준 왼쪽 -> 오른쪽 순 정렬
+        spots_info.sort(key=lambda s: s["cx"])
+
+        # 8. 정렬된 순서대로 인덱싱 부여 및 이미지 시각화 마킹
+        results = image.copy()
+        spot_data = []
+        spot_count = 0
+        
+        for i, spot in enumerate(spots_info, start=1):
+            spot_count += 1
+            cx, cy = spot['cx'], spot['cy']
+            area, ratio = spot['area'], spot['ratio']
+            
+            spot_data.append({
+                'id': i,
+                'cx': cx, 'cy': cy,
+                'area': area,
+                'ratio': ratio
+            })
+
+            # 원본과 동일하게 인식 범위 서클 및 번호 텍스트 드로잉
+            cv2.circle(results, (cx, cy), 6, (0, 0, 255), -1)
+            cv2.putText(results, str(i), (cx + 8, cy - 5), 
                         cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
 
+        # 태양 외곽 테두리선 및 중심점 표시
         cv2.circle(results, (x, y), r, (0, 255, 0), 2)
+        cv2.circle(results, (x, y), 3, (255, 0, 0), -1)
+        
+        # 9. base64 인코딩 스트리밍 변환
         _, buffer = cv2.imencode('.jpg', results)
         img_base64 = base64.b64encode(buffer).decode('utf-8')
 
+        # 10. 태양 정보 메타데이터(중심좌표, 반지름)를 포함한 완벽한 데이터 반환
         return jsonify({
             'status': 'success',
+            'sun_info': {
+                'center_x': int(x),
+                'center_y': int(y),
+                'radius': int(r)
+            },
             'spot_count': spot_count,
             'data': spot_data,
             'image_base64': img_base64
@@ -181,7 +218,6 @@ def analyze_single():
 
     except Exception as e:
         return jsonify({'status': 'fail', 'message': f'분석 중 에러 발생: {str(e)}'})
-
 # ==========================================
 # 3. 연속 영상 분석 엔진
 # ==========================================
