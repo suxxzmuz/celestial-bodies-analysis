@@ -334,7 +334,7 @@
         .history-info { 
             display: flex; 
             flex-direction: column; 
-            gap: 4px; 
+            gap: 6px; 
         }
 
         .history-info strong { 
@@ -387,6 +387,10 @@
             <div class="control-group">
                 <label>최소 흑점 크기 (px²)</label>
                 <input type="number" id="minSpotSize" value="3" min="1">
+            </div>
+            <div class="control-group">
+                <label>최대 흑점 크기 (px²)</label>
+                <input type="number" id="maxSpotSize" value="500" min="2">
             </div>
             <button class="btn" id="analyzeBtn" onclick="analyzeSingle()">분석 실행</button>
         </section>
@@ -450,7 +454,7 @@
     </main>
 
     <script>
-        let currentData = [];
+        let currentFullResult = null; // CSV, JSON 다운로드를 위한 전역 객체 변수
         const DB_KEY = 'astrovision_single_db';
 
         document.addEventListener('DOMContentLoaded', loadHistoryFromDB);
@@ -459,7 +463,6 @@
             document.getElementById('resultContainer').style.display = 'none';
         }
 
-        // 핵심 기능: 파이썬 최종 수정본 라우터 스펙에 맞춰 수신 연동 변경
         function analyzeSingle() {
             const fileInput = document.getElementById('imageUpload');
             if (!fileInput.files[0]) {
@@ -471,6 +474,8 @@
             formData.append('image', fileInput.files[0]);
             formData.append('threshValue', document.getElementById('threshValue').value);
             formData.append('minSpotSize', document.getElementById('minSpotSize').value);
+            // 추가요청 3: fetch 전송에 maxSpotSize 추가
+            formData.append('maxSpotSize', document.getElementById('maxSpotSize').value);
 
             const btn = document.getElementById('analyzeBtn');
             btn.innerText = "OpenCV 연산 중...";
@@ -487,7 +492,9 @@
                     return;
                 }
 
-                // 1. 캔버스 엘리먼트에 파이썬이 연산 후 렌더링한 이미지 주입
+                currentFullResult = result; // 파일 다운로드용으로 할당
+
+                // 캔버스 렌더링
                 const canvas = document.getElementById('resultCanvas');
                 const ctx = canvas.getContext('2d');
                 const img = new Image();
@@ -499,7 +506,7 @@
                 }
                 img.src = "data:image/jpeg;base64," + result.image_base64;
 
-                // 2. [신규 수신 반영] 상단 메타데이터 패널 값 매핑
+                // 추가요청 4: sun_info, brightness 카드 렌더링
                 if (result.sun_info) {
                     document.getElementById('sunCenter').innerText = `(${result.sun_info.center_x}, ${result.sun_info.center_y})`;
                     document.getElementById('sunRadius').innerText = `${result.sun_info.radius} px`;
@@ -510,12 +517,10 @@
                 }
                 document.getElementById('totalSpots').innerText = `${result.spot_count} 개`;
 
-                // 3. 파이썬 산출 배열 데이터 테이블 매핑 (정렬 완료된 흑점 데이터 리스트)
-                currentData = result.data;
+                // 흑점 데이터 테이블 렌더링
                 const tbody = document.getElementById('dataTableBody');
                 tbody.innerHTML = '';
-
-                currentData.forEach(row => {
+                result.data.forEach(row => {
                     tbody.innerHTML += `
                         <tr>
                             <td><strong>${row.id}</strong></td>
@@ -527,7 +532,8 @@
                 });
 
                 document.getElementById('resultContainer').style.display = 'flex';
-                saveToDB(currentData);
+                // 로컬 DB 전체 정보 저장
+                saveToDB(result);
             })
             .catch(error => {
                 console.error('Error:', error);
@@ -537,14 +543,23 @@
             });
         }
 
-        function saveToDB(data) {
+        // 추가요청 5: saveToDB 수정 (sun_info, brightness, spot_count 모두 저장)
+        function saveToDB(fullData) {
             const history = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
-            const record = { id: Date.now(), date: new Date().toLocaleString('ko-KR'), data: data };
+            const record = { 
+                id: Date.now(), 
+                date: new Date().toLocaleString('ko-KR'), 
+                sun_info: fullData.sun_info,
+                brightness: fullData.brightness,
+                spot_count: fullData.spot_count,
+                data: fullData.data 
+            };
             history.unshift(record);
             localStorage.setItem(DB_KEY, JSON.stringify(history));
             loadHistoryFromDB();
         }
 
+        // 추가요청 6: 히스토리 표시에 반지름, 평균밝기 추가
         function loadHistoryFromDB() {
             const history = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
             const listObj = document.getElementById('historyList');
@@ -556,11 +571,15 @@
             }
 
             history.forEach(item => {
+                const radius = item.sun_info ? item.sun_info.radius : '-';
+                const meanBright = item.brightness ? item.brightness.mean : '-';
+                const spotCount = item.spot_count || (item.data ? item.data.length : 0);
+
                 listObj.innerHTML += `
                     <li>
                         <div class="history-info">
                             <strong>기록 시간: ${item.date}</strong>
-                            <span>검출 총 개수: ${item.data.length} 개</span>
+                            <span>반지름: ${radius}px &nbsp;|&nbsp; 평균 밝기: ${meanBright} &nbsp;|&nbsp; 검출 총 개수: ${spotCount} 개</span>
                         </div>
                         <button class="btn" style="padding: 6px 12px; font-size:12px;" onclick="downloadJSON(${item.id})">JSON 출력</button>
                     </li>
@@ -575,12 +594,32 @@
             }
         }
 
+        // 추가요청 7: downloadCSV 상단에 메타정보 헤더 포함
         function downloadCSV() {
-            if(currentData.length === 0) return;
-            let csvContent = "data:text/csv;charset=utf-8,\uFEFF번호,중심X,중심Y,면적(px^2),태양대비(%)\r\n";
-            currentData.forEach(row => {
+            if(!currentFullResult || !currentFullResult.data || currentFullResult.data.length === 0) return;
+            
+            let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+            
+            // 태양 메타데이터 헤더 작성
+            csvContent += "[태양 메타정보]\r\n";
+            if (currentFullResult.sun_info) {
+                csvContent += `중심 좌표 (x; y),${currentFullResult.sun_info.center_x}; ${currentFullResult.sun_info.center_y}\r\n`;
+                csvContent += `반지름 (px),${currentFullResult.sun_info.radius}\r\n`;
+                csvContent += `원판 면적 (px^2),${currentFullResult.sun_info.sun_area}\r\n`;
+            }
+            if (currentFullResult.brightness) {
+                csvContent += `평균 밝기,${currentFullResult.brightness.mean}\r\n`;
+                csvContent += `표준편차,${currentFullResult.brightness.std}\r\n`;
+            }
+            csvContent += `검출 흑점 수,${currentFullResult.spot_count}\r\n\r\n`;
+
+            // 흑점 데이터 테이블 작성
+            csvContent += "[흑점 데이터]\r\n";
+            csvContent += "번호,중심X,중심Y,면적(px^2),태양대비(%)\r\n";
+            currentFullResult.data.forEach(row => {
                 csvContent += `${row.id},${row.cx},${row.cy},${row.area},${row.ratio}\r\n`;
             });
+            
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
             link.setAttribute("href", encodedUri);
@@ -590,11 +629,21 @@
             link.remove();
         }
 
+        // 추가요청 8: downloadJSON 전체 결과 포함 (sun_info, brightness, data)
         function downloadJSON(id) {
             const history = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
             const target = history.find(item => item.id === id);
             if(!target) return;
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(target.data, null, 2));
+            
+            // 저장된 DB 객체에서 id, date는 제외하고 추출할 수 있도록 포맷팅
+            const exportData = {
+                sun_info: target.sun_info,
+                brightness: target.brightness,
+                spot_count: target.spot_count,
+                data: target.data
+            };
+
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportData, null, 2));
             const link = document.createElement("a");
             link.setAttribute("href", dataStr);
             link.setAttribute("download", `solar_report_${id}.json`);
