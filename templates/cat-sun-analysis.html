@@ -9,84 +9,70 @@
             margin: 0; 
             padding: 0; 
             box-sizing: border-box; 
-            font-family: 'Helvetica Neue', Arial, sans-serif; 
+            font-family: 'Helvetica Neue', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; 
         }
         
         body {
-            background-color: #ffffff;
-            color: #000000;
+            background-color: #fafafa;
+            color: #1a1a1a;
             display: flex;
             flex-direction: column;
             align-items: center;
             min-height: 100vh;
-            padding: 50px 20px;
+            padding: 40px 20px;
             overflow-x: hidden; 
+            line-height: 1.6;
         }
 
         .container { 
             width: 100%; 
-            max-width: 1000px;
+            max-width: 1100px;
+            margin: 0 auto;
         }
 
         header {
+            width: 100%;
             display: flex;
             align-items: center;
             justify-content: center;
             position: relative;
-            padding-bottom: 20px;
+            padding: 10px 0 20px 0;
             margin-bottom: 50px;
-        }
-
-        header::after {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 100vw;
-            height: 2px;
-            background-color: #000;
-        }
-
-        .user-icon {
-            position: absolute;
-            left: 0;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 48px;
-            height: 48px;
-            cursor: pointer;
-            transition: transform 0.2s ease;
-        }
-
-        .user-icon:hover { 
-            transform: translateY(-50%) scale(1.1); 
+            border-bottom: 2px solid #1a1a1a;
         }
 
         h1 { 
-            font-size: 46px; 
+            font-size: 26px; 
             font-weight: 800; 
-            letter-spacing: 4px; 
+            letter-spacing: 2px; 
             text-transform: uppercase; 
+            text-align: center;
         }
 
-        .intro-text { 
-            text-align: center; 
-            margin-bottom: 50px; 
-            font-size: 18px; 
-            color: #555; 
-            line-height: 1.6; 
-            font-weight: bold;
+        h1 a {
+            text-decoration: none;
+            color: #1a1a1a;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        h1 a:hover {
+            opacity: 0.7;
         }
 
         .selection-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 40px;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 24px;
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
         }
 
         .card {
-            border: 2px solid #000;
+            background-color: #ffffff;
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
             padding: 60px 40px;
             display: flex;
             flex-direction: column;
@@ -94,49 +80,48 @@
             justify-content: center;
             text-align: center;
             text-decoration: none; 
-            color: #000;
-            transition: all 0.3s ease;
-            background-color: #fff;
+            color: #1a1a1a;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
             cursor: pointer;
-            min-height: 350px;
+            min-height: 320px;
         }
 
         .card:hover {
-            background-color: #000;
-            color: #fff;
-            transform: translateY(-10px);
-            box-shadow: 12px 12px 0px rgba(0, 0, 0, 0.15);
+            transform: translateY(-6px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
+            border-color: #1a1a1a;
         }
 
         .card h2 { 
-            font-size: 28px; 
-            margin-bottom: 20px; 
-            letter-spacing: 1px; 
+            font-size: 22px; 
+            margin-bottom: 16px; 
+            font-weight: 700;
         }
         
         .card p { 
-            font-size: 16px; 
+            font-size: 15px; 
             line-height: 1.6; 
-            color: inherit; 
-            opacity: 0.8; 
+            color: #666; 
         }
 
-        .card .icon-placeholder {
-            width: 80px; 
-            height: 80px; 
-            border: 2px solid currentColor;
+        .icon-placeholder {
+            width: 70px; 
+            height: 70px; 
+            border: 2px solid #1a1a1a;
             border-radius: 50%; 
-            margin-bottom: 30px;
+            margin-bottom: 24px;
             display: flex; 
             align-items: center; 
             justify-content: center;
-            font-size: 32px; 
+            font-size: 24px; 
             font-weight: bold;
+            color: #1a1a1a;
         }
 
         @media (max-width: 768px) {
             .selection-grid { grid-template-columns: 1fr; }
-            h1 { font-size: 32px; }
+            h1 { font-size: 22px; }
             .card { min-height: 250px; padding: 40px 20px; }
         }
     </style>
@@ -145,7 +130,9 @@
 
     <div class="container">
         <header>
-            <h1>ASTROVISION</h1>
+            <h1>
+                <a href="/">ASTROVISION</a>
+            </h1>
         </header>
 
         <div class="selection-grid">

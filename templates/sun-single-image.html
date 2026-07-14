@@ -5,55 +5,335 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ASTROVISION - SINGLE IMAGE ANALYSIS</title>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Helvetica Neue', Arial, sans-serif; }
-        body { background-color: #ffffff; color: #000000; display: flex; flex-direction: column; min-height: 100vh; padding: 20px; }
-        
-        header { border-bottom: 2px solid #000; padding-bottom: 20px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: flex-end; }
-        h1 { font-size: 32px; letter-spacing: 2px; font-weight: 800; text-transform: uppercase; }
-        .subtitle { font-size: 16px; font-weight: bold; color: #555; }
+        * { 
+            box-sizing: border-box; 
+            margin: 0; 
+            padding: 0; 
+            font-family: 'Helvetica Neue', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; 
+        }
 
-        nav { display: flex; gap: 10px; margin-bottom: 20px; }
-        nav a { text-decoration: none; padding: 10px 20px; border: 2px solid #000; color: #000; font-weight: bold; background: #fff; transition: 0.2s; }
-        nav a:hover, nav a.active { background: #000; color: #fff; }
+        body { 
+            background-color: #fafafa; 
+            color: #1a1a1a; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            min-height: 100vh; 
+            padding: 40px 20px; 
+            overflow-x: hidden; 
+            line-height: 1.6; 
+        }
 
-        main { display: flex; flex-direction: column; gap: 30px; max-width: 1200px; margin: 0 auto; width: 100%; }
+        main { 
+            width: 100%; 
+            max-width: 1100px; 
+            margin: 0 auto; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 24px; 
+        }
 
-        .control-panel { border: 2px solid #000; padding: 25px; display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-end; background-color: #fafafa; }
-        .control-group { display: flex; flex-direction: column; gap: 8px; }
-        .control-group label { font-weight: bold; font-size: 14px; }
-        input[type="file"], input[type="number"] { border: 1px solid #000; padding: 10px; background: #fff; color: #000; font-size: 14px; outline: none; }
-        input[type="number"] { width: 120px; }
+        header { 
+            width: 100%; 
+            max-width: 1100px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between; 
+            position: relative; 
+            padding: 10px 0 20px 0; 
+            margin-bottom: 30px; 
+            border-bottom: 2px solid #1a1a1a; 
+        }
         
-        .btn { background: #000; color: #fff; border: 2px solid #000; padding: 10px 20px; font-weight: bold; cursor: pointer; transition: 0.2s; text-transform: uppercase; }
-        .btn:hover { background: #fff; color: #000; }
-        .btn:disabled { background: #ccc; border-color: #ccc; cursor: not-allowed; color: #666; }
-        .btn-danger { background: #fff; color: #d32f2f; border-color: #d32f2f; }
-        .btn-danger:hover { background: #d32f2f; color: #fff; }
+        header div {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
 
-        .result-container { display: flex; gap: 30px; flex-wrap: wrap; display: none; }
-        .image-view { flex: 1; min-width: 400px; border: 2px solid #000; padding: 15px; display: flex; flex-direction: column; align-items: center; background: #fff; }
-        .image-view h3 { margin-bottom: 15px; border-bottom: 2px solid #000; padding-bottom: 5px; width: 100%; text-align: center; }
-        canvas { max-width: 100%; height: auto; border: 1px solid #eee; }
+        h1 { 
+            font-size: 26px; 
+            font-weight: 800; 
+            letter-spacing: 2px; 
+            text-transform: uppercase; 
+            color: #1a1a1a; 
+        }
+
+        .subtitle { 
+            font-size: 14px; 
+            font-weight: 600; 
+            color: #666; 
+            margin-top: 4px; 
+            letter-spacing: 1px; 
+        }
+
+        nav { 
+            display: flex; 
+            gap: 12px; 
+            margin-bottom: 24px; 
+            width: 100%; 
+            max-width: 1100px; 
+        }
+
+        nav a { 
+            text-decoration: none; 
+            padding: 12px 24px; 
+            border: 1px solid #d1d1d1; 
+            border-radius: 8px; 
+            color: #666; 
+            font-weight: 600; 
+            background: #ffffff; 
+            transition: all 0.2s ease; 
+        }
+
+        nav a:hover { 
+            border-color: #1a1a1a; 
+            color: #1a1a1a; 
+        }
+
+        nav a.active { 
+            background: #1a1a1a; 
+            color: #ffffff; 
+            border-color: #1a1a1a; 
+            pointer-events: none; 
+        }
+
+        .control-panel { 
+            background-color: #ffffff; 
+            border: 1px solid #eaeaea; 
+            border-radius: 12px; 
+            padding: 24px; 
+            display: flex; 
+            flex-wrap: wrap; 
+            gap: 20px; 
+            align-items: flex-end; 
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02); 
+        }
+
+        .control-group { 
+            display: flex; 
+            flex-direction: column; 
+            gap: 8px; 
+        }
+
+        .control-group label { 
+            font-size: 13px; 
+            font-weight: 700; 
+            color: #555; 
+        }
+
+        input[type="file"], input[type="number"] { 
+            padding: 12px 16px; 
+            border: 1px solid #d1d1d1; 
+            border-radius: 8px; 
+            font-size: 14px; 
+            background-color: #ffffff; 
+            color: #1a1a1a; 
+            outline: none; 
+            transition: all 0.2s; 
+        }
+
+        input[type="number"] { width: 140px; }
         
-        .data-view { flex: 1; min-width: 400px; display: flex; flex-direction: column; }
-        .data-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 2px solid #000; padding-bottom: 5px; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { border: 1px solid #000; padding: 12px; text-align: center; font-size: 14px; }
-        th { background-color: #000; color: #fff; font-weight: bold; }
-        
-        .history-section { border-top: 4px solid #000; padding-top: 30px; margin-top: 20px; }
-        .history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-        .history-list { list-style: none; display: flex; flex-direction: column; gap: 10px; }
-        .history-list li { border: 1px solid #000; padding: 15px; display: flex; justify-content: space-between; align-items: center; background: #fff; }
-        .history-info strong { font-size: 16px; display: block; margin-bottom: 5px; }
-        .history-info span { font-size: 13px; color: #666; }
+        input[type="file"]:focus, input[type="number"]:focus { 
+            border-color: #1a1a1a; 
+            box-shadow: 0 0 0 3px rgba(26, 26, 26, 0.1); 
+        }
+
+        .btn { 
+            background-color: #1a1a1a; 
+            color: #ffffff; 
+            border: 2px solid #1a1a1a; 
+            padding: 12px 24px; 
+            border-radius: 8px; 
+            font-size: 14px; 
+            font-weight: 600; 
+            cursor: pointer; 
+            transition: all 0.2s ease; 
+            text-transform: uppercase; 
+            white-space: nowrap;
+        }
+
+        .btn:hover { 
+            background-color: #ffffff; 
+            color: #1a1a1a; 
+        }
+
+        .btn:disabled { 
+            background-color: #f0f0f0; 
+            border-color: #e0e0e0; 
+            color: #999; 
+            cursor: not-allowed; 
+        }
+
+        .btn-danger { 
+            background-color: #ffffff; 
+            color: #e53935; 
+            border-color: #e53935; 
+        }
+
+        .btn-danger:hover { 
+            background-color: #e53935; 
+            color: #ffffff; 
+        }
+
+        .result-container { 
+            display: flex; 
+            gap: 24px; 
+            flex-wrap: wrap; 
+            display: none; 
+        }
+
+        .image-view, .data-view { 
+            flex: 1; 
+            min-width: 320px; 
+            background: #ffffff; 
+            border: 1px solid #eaeaea; 
+            border-radius: 12px; 
+            padding: 24px; 
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02); 
+            display: flex; 
+            flex-direction: column; 
+        }
+
+        .image-view h3 {
+            margin-bottom: 20px; 
+            border-bottom: 1px solid #eaeaea; 
+            padding-bottom: 15px; 
+            font-size: 18px; 
+            font-weight: 700; 
+            color: #1a1a1a;
+            text-align: center;
+        }
+
+        .data-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 20px; 
+            border-bottom: 1px solid #eaeaea; 
+            padding-bottom: 15px; 
+            width: 100%; 
+        }
+
+        .data-header h3 { 
+            font-size: 18px; 
+            font-weight: 700; 
+            color: #1a1a1a; 
+            margin: 0; 
+        }
+
+        canvas { 
+            max-width: 100%; 
+            height: auto; 
+            border-radius: 8px; 
+            border: 1px solid #eaeaea; 
+            background-color: #000;
+        }
+
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+        }
+
+        th, td { 
+            border-bottom: 1px solid #eaeaea; 
+            padding: 14px 12px; 
+            text-align: center; 
+            font-size: 14px; 
+        }
+
+        th { 
+            background-color: #f9f9f9; 
+            color: #333; 
+            font-weight: 700; 
+            border-top: 2px solid #1a1a1a; 
+        }
+
+        tr:hover td { 
+            background-color: #fafafa; 
+        }
+
+        .history-section { 
+            background: #ffffff; 
+            border: 1px solid #eaeaea; 
+            border-radius: 12px; 
+            padding: 24px; 
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02); 
+        }
+
+        .history-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 20px; 
+            border-bottom: 1px solid #eaeaea; 
+            padding-bottom: 15px; 
+        }
+
+        .history-header h2 { 
+            font-size: 18px; 
+            font-weight: 700; 
+            color: #1a1a1a; 
+        }
+
+        .history-list { 
+            list-style: none; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 12px; 
+        }
+
+        .history-list li { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            background: #fafafa; 
+            border: 1px solid #eaeaea; 
+            padding: 16px 20px; 
+            border-radius: 8px; 
+            transition: all 0.2s ease; 
+        }
+
+        .history-list li:hover { 
+            border-color: #1a1a1a; 
+            background: #fff; 
+        }
+
+        .history-info { 
+            display: flex; 
+            flex-direction: column; 
+            gap: 4px; 
+        }
+
+        .history-info strong { 
+            font-size: 14px; 
+            color: #1a1a1a; 
+            font-weight: 700;
+        }
+
+        .history-info span { 
+            font-size: 13px; 
+            color: #666; 
+        }
+
+        @media (max-width: 768px) {
+            header { flex-direction: column; align-items: flex-start; gap: 10px; }
+            nav { flex-wrap: wrap; }
+            .control-panel { flex-direction: column; align-items: stretch; }
+            input[type="number"], .btn { width: 100%; }
+            .result-container { flex-direction: column; }
+            .data-header { flex-direction: column; gap: 15px; align-items: flex-start; }
+            .history-list li { flex-direction: column; gap: 15px; align-items: flex-start; }
+            .history-list li .btn { width: 100%; }
+        }
     </style>
 </head>
 <body>
 
     <header>
         <div>
-            <h1>ASTROVISION</h1>
+            <h1><a href="/" style="text-decoration: none; color: inherit;">ASTROVISION</a></h1>
             <div class="subtitle">SOLAR SINGLE IMAGE ANALYSIS</div>
         </div>
     </header>
@@ -141,7 +421,7 @@
             btn.innerText = "OpenCV 연산 중...";
             btn.disabled = true;
 
-            fetch('/analyze', { method: 'POST', body: formData })
+            fetch('/analyze_single', { method: 'POST', body: formData })
             .then(response => response.json())
             .then(result => {
                 btn.innerText = "분석 실행";

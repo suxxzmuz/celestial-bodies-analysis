@@ -17,7 +17,6 @@ TARGET_CENTER = (TARGET_SIZE // 2, TARGET_SIZE // 2)
 # 0. 데이터베이스(SQLite) 설정
 # ==========================================
 def init_db():
-    # 데이터베이스 파일(astrovision.db) 연결 및 테이블 생성
     conn = sqlite3.connect('astrovision.db')
     cursor = conn.cursor()
     cursor.execute('''
@@ -47,10 +46,6 @@ def get_db_connection():
 @app.route('/')
 def index():
     return render_template('index.html')
-
-@app.route('/log-in')
-def login_page():
-    return render_template('log-in.html')
 
 @app.route('/main')
 def main_page():
