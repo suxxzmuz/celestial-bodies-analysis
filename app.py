@@ -245,7 +245,7 @@ def process_and_extract_spots(file_obj, thresh_value):
     normalized_img = np.zeros((TARGET_SIZE, TARGET_SIZE, 3), dtype=np.uint8)
     if circles is not None:
         circles = np.round(circles[0, :]).astype("int")
-        x, y, r = circles[0]
+        x, y, r = int(circles[0][0]), int(circles[0][1]), int(circles[0][2])
         scale = TARGET_RADIUS / float(r)
         M = cv2.getRotationMatrix2D((x, y), 0, scale)
         M[0, 2] += TARGET_CENTER[0] - x
@@ -285,7 +285,6 @@ def process_and_extract_spots(file_obj, thresh_value):
 
 @app.route('/analyze_series', methods=['POST'])
 def analyze_series():
-    # 💡 다중 파일(2장 이상)을 리스트로 받아옵니다.
     files = request.files.getlist('images')
     if not files or len(files) < 2:
         return jsonify({'status': 'fail', 'message': '정확한 궤적 추적을 위해 2장 이상의 이미지를 업로드해야 합니다.'})
