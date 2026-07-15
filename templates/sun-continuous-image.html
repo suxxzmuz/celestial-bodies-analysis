@@ -5,9 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ASTROVISION - SERIES IMAGE ANALYSIS</title>
     <style>
-        /* ====================================================
-           ASTROVISION 공통 디자인 시스템 (Modern Black & White)
-           ==================================================== */
+        /* 공통 디자인 */
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Helvetica Neue', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; }
         body { background-color: #fafafa; color: #1a1a1a; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 40px 20px; overflow-x: hidden; line-height: 1.6; }
         main { width: 100%; max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
@@ -97,9 +95,19 @@
             <div class="control-group" style="flex: 1; min-width: 250px;">
                 <label>연속 영상 다중 업로드 (2장 이상 필수)</label>
                 <input type="file" id="imageUploads" accept="image/*" multiple onchange="resetContainer()">
-                <small style="color: #666; font-size: 12px; margin-top: 4px;">※ Ctrl(또는 Shift) 키를 누르고 사진을 한 번에 여러 장 선택하세요.</small>
+                <small style="color: #666; font-size: 12px; margin-top: 4px;">※ Ctrl(또는 Shift) 키를 누르고 한 번에 선택하세요.</small>
             </div>
             
+            <div class="control-group">
+                <label>추적 민감도 한계값</label>
+                <input type="number" id="threshValue" value="80" min="1" max="254">
+            </div>
+
+            <div class="control-group">
+                <label>최소 흑점 크기 (px²)</label>
+                <input type="number" id="minSpotSize" value="15" min="1">
+            </div>
+
             <button class="btn" id="analyzeBtn" onclick="analyzeSeries()">다중 프레임 추적 실행</button>
         </section>
 
@@ -116,10 +124,8 @@
                 </div>
                 
                 <div id="summaryBox" class="summary-box">
-                    <div class="summary-grid" id="globalStatsGrid">
-                        </div>
-                    <ul class="image-meta-list" id="imageMetaList">
-                        </ul>
+                    <div class="summary-grid" id="globalStatsGrid"></div>
+                    <ul class="image-meta-list" id="imageMetaList"></ul>
                 </div>
 
                 <div class="table-responsive">
@@ -132,8 +138,6 @@
                                 <th>적도 이동(px)</th>
                                 <th>추정 위도(°)</th>
                                 <th>보정 이동각(°)</th>
-                                <th>이동 방향(°)</th>
-                                <th>매칭 유사도</th>
                             </tr>
                         </thead>
                         <tbody id="dataTableBody"></tbody>
@@ -175,7 +179,8 @@
             for (let i = 0; i < files.length; i++) {
                 formData.append('images', files[i]);
             }
-
+            formData.append('threshValue', document.getElementById('threshValue').value);
+            formData.append('minSpotSize', document.getElementById('minSpotSize').value);
 
             const btn = document.getElementById('analyzeBtn');
             btn.innerText = "심화 연산 처리 중...";
@@ -192,7 +197,6 @@
                     return;
                 }
 
-                // 캔버스 렌더링
                 const canvas = document.getElementById('resultCanvas');
                 const ctx = canvas.getContext('2d');
                 const img = new Image();
@@ -207,42 +211,32 @@
                 currentImageSummaries = result.image_summaries;
                 currentData = result.data;
 
-                // 1. 요약 대시보드 (정상 분석 장수, 대표 흑점, 추정 적도, 추정 자전축)
                 document.getElementById('globalStatsGrid').innerHTML = `
                     <div class="summary-item"><span>정상 분석 프레임</span> <strong style="color:#0056b3;">${currentGlobalInfo.analyzed_count}장</strong></div>
                     <div class="summary-item"><span>기준 대표 흑점</span> <strong style="color:#d32f2f;">ID: ${currentGlobalInfo.representative_spot_id} 👑</strong></div>
-                    <div class="summary-item"><span>대표 흑점 중심거리</span> <strong>${currentGlobalInfo.representative_center_distance} px</strong></div>
                     <div class="summary-item"><span>추정 적도 기울기</span> <strong>${currentGlobalInfo.equator_angle}°</strong></div>
                     <div class="summary-item"><span>추정 자전축</span> <strong>${currentGlobalInfo.rotation_axis_angle}°</strong></div>
-                    <div class="summary-item"><span>범례</span> <strong style="color:#00d7ff;">━ 적도</strong> &nbsp; <strong style="color:#ff6400;">━ 자전축</strong></div>
                 `;
 
-                // 개별 이미지 (이름, 검출 흑점 수, 개별 좌표)
                 const metaList = document.getElementById('imageMetaList');
                 metaList.innerHTML = '';
                 currentImageSummaries.forEach((info) => {
-                    const spotCoords = info.spots.map((s, i) => `#${i+1}(${s.cx},${s.cy})`).join('  ');
-                    metaList.innerHTML += `<li>📁 <strong>[${info.filename}]</strong> : 검출 흑점 ${info.spot_count}개<br><span style="font-size:11px;color:#888;word-break:break-all;">${spotCoords}</span></li>`;
+                    metaList.innerHTML += `<li>📁 <strong>[${info.filename}]</strong> : 검출 흑점 ${info.spot_count}개</li>`;
                 });
 
-                // 2. 심화 데이터 테이블 (원좌표, 회전좌표, 적도 이동, 위도, 이동각)
                 const tbody = document.getElementById('dataTableBody');
                 tbody.innerHTML = '';
 
                 currentData.forEach(row => {
-                    const isRep = row.id === currentGlobalInfo.representative_spot_id;
-                    const repTag = isRep ? ' 👑' : '';
-                    const rowStyle = isRep ? 'background:#fffbea;' : '';
+                    const isRep = row.id === currentGlobalInfo.representative_spot_id ? ' 👑' : '';
                     tbody.innerHTML += `
-                        <tr style="${rowStyle}">
-                            <td style="font-weight:bold;">${row.id}${repTag}</td>
+                        <tr>
+                            <td style="font-weight:bold;">${row.id}${isRep}</td>
                             <td class="coord-text">(${row.start_x}, ${row.start_y})<br>→ (${row.end_x}, ${row.end_y})</td>
                             <td class="coord-text">(${row.rot_start_x}, ${row.rot_start_y})<br>→ (${row.rot_end_x}, ${row.rot_end_y})</td>
                             <td style="color:#0056b3; font-weight:bold;">${row.equator_move}</td>
                             <td>${row.latitude}°</td>
                             <td style="color:#d32f2f; font-weight:bold;">${row.rotation_angle}°</td>
-                            <td class="coord-text">${row.move_angle}°</td>
-                            <td class="coord-text">${row.score}</td>
                         </tr>
                     `;
                 });
@@ -305,28 +299,25 @@
 
         function downloadCSV() {
             if(currentData.length === 0) return;
-            
             let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; 
 
-            // 1. 전역 요약
             csvContent += "[전역 요약 정보]\r\n";
-            csvContent += "정상 분석장수,추정 적도 기울기(°),추정 자전축(°),대표 흑점 ID,대표 흑점 중심거리(px)\r\n";
-            csvContent += `${currentGlobalInfo.analyzed_count},${currentGlobalInfo.equator_angle},${currentGlobalInfo.rotation_axis_angle},${currentGlobalInfo.representative_spot_id},${currentGlobalInfo.representative_center_distance}\r\n\r\n`;
+            csvContent += "정상 분석장수,추정 적도 기울기(°),추정 자전축(°),대표 흑점 ID\r\n";
+            csvContent += `${currentGlobalInfo.analyzed_count},${currentGlobalInfo.equator_angle},${currentGlobalInfo.rotation_axis_angle},${currentGlobalInfo.representative_spot_id}\r\n\r\n`;
 
-            // 2. 메타데이터 및 개별 좌표 (이름, 흑점 수, 개별 좌표 배열)
             csvContent += "[개별 프레임 메타데이터 (시간순 정렬)]\r\n";
-            csvContent += "순번,사진 이름,검출 흑점 수,개별 좌표 목록 (cx cy area)\r\n";
+            csvContent += "순번,사진 이름,검출 흑점 수,개별 좌표 목록 (cx cy)\r\n";
             currentImageSummaries.forEach(img => {
-                const spotsStr = img.spots.map((s,i) => `#${i+1}(${s.cx} ${s.cy} ${s.area}px²)`).join(' | ');
+                const spotsStr = img.spots.map(s => `(${s.cx} ${s.cy})`).join(' | ');
                 csvContent += `${img.index},${img.filename},${img.spot_count},${spotsStr}\r\n`;
             });
             csvContent += "\r\n";
 
-            // 3. 심화 연산 데이터
-            csvContent += "[1번 프레임 → 2번 프레임 템플릿 매칭 데이터]\r\n";
-            csvContent += "ID,원좌표(시작X),원좌표(시작Y),원좌표(종료X),원좌표(종료Y),중심거리(px),X이동량,Y이동량,이동방향(°),매칭유사도,회전후좌표(시작X),회전후좌표(시작Y),회전후좌표(종료X),회전후좌표(종료Y),적도방향 이동량(px),추정 위도(°),보정 이동각(°)\r\n";
+            csvContent += "[처음 프레임 ↔ 마지막 프레임 매칭 데이터]\r\n";
+            csvContent += "ID,원좌표(시작X),원좌표(시작Y),원좌표(종료X),원좌표(종료Y),직선거리(px),X이동량,Y이동량,회전후좌표(시작X),회전후좌표(시작Y),회전후좌표(종료X),회전후좌표(종료Y),적도방향 이동량(px),추정 위도(°),보정 이동각(°)\r\n";
+            
             currentData.forEach(r => {
-                csvContent += `${r.id},${r.start_x},${r.start_y},${r.end_x},${r.end_y},${r.distance},${r.dx},${r.dy},${r.move_angle},${r.score},${r.rot_start_x},${r.rot_start_y},${r.rot_end_x},${r.rot_end_y},${r.equator_move},${r.latitude},${r.rotation_angle}\r\n`;
+                csvContent += `${r.id},${r.start_x},${r.start_y},${r.end_x},${r.end_y},${r.distance},${r.dx},${r.dy},${r.rot_start_x},${r.rot_start_y},${r.rot_end_x},${r.rot_end_y},${r.equator_move},${r.latitude},${r.rotation_angle}\r\n`;
             });
 
             const encodedUri = encodeURI(csvContent);
