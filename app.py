@@ -218,7 +218,7 @@ def analyze_single():
         return jsonify({'status': 'fail', 'message': f'분석 중 에러 발생: {str(e)}'})
 
 # ==========================================
-# 3. 연속 영상 분석 엔진 (다중 이미지 처리 완벽 통합본)
+# 3. 연속 영상 분석 엔진 
 # ==========================================
 
 def rotate_point(x, y, center_x, center_y, angle_deg):
