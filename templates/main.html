@@ -89,7 +89,7 @@
                     <line x1="4" y1="21" x2="24" y2="21"></line>
                 </svg>
             </div>
-            <h1><a href="index.html">ASTROVISION</a></h1>
+            <h1><a href="/">ASTROVISION</a></h1>
             <div class="header-icons">
                 <div class="search-icon" onclick="toggleSearchBar()">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -291,7 +291,7 @@
                     category: category,
                     description: description,
                     image_base64: imageBase64,
-                    createdAt: serverTimestamp() // 서버 시간 기록
+                    createdAt: serverTimestamp()
                 });
                 window.closeUploadModal();
             } catch (error) {
@@ -299,7 +299,7 @@
                 alert("클라우드 저장에 실패했습니다. Firebase 설정을 확인해주세요.");
             } finally {
                 const submitBtn = document.getElementById('submitBtn');
-                submitBtn.innerText = 'Firebase에 저장하기';
+                submitBtn.innerText = '저장하기';
                 submitBtn.disabled = false;
             }
         }

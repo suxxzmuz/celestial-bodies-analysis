@@ -218,11 +218,11 @@ def analyze_single():
         return jsonify({'status': 'fail', 'message': f'분석 중 에러 발생: {str(e)}'})
 
 # ==========================================
-# 3. 연속 영상 분석 엔진 
+# 3. 연속 영상 분석 엔진 (main_series.py 완벽 통합 + 노이즈 제거)
 # ==========================================
 
 def rotate_point(x, y, center_x, center_y, angle_deg):
-    """지정된 각도만큼 좌표를 회전시켜 적도 기준 평면으로 정렬하는 함수"""
+    """지정된 각도만큼 좌표를 회전시켜 적도 기준 평면으로 정렬"""
     theta = math.radians(angle_deg)
     rel_x = x - center_x
     rel_y = y - center_y
@@ -231,7 +231,7 @@ def rotate_point(x, y, center_x, center_y, angle_deg):
     return rot_x, rot_y
 
 def process_and_extract_spots(file_obj, thresh_value):
-    """개별 이미지의 태양 영역을 정규화하고 흑점의 위치와 면적을 추출"""
+    """이미지 정규화 및 [노이즈 제거]가 포함된 흑점 추출"""
     file_bytes = np.frombuffer(file_obj.read(), np.uint8)
     image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
     if image is None: return None, None
@@ -244,23 +244,27 @@ def process_and_extract_spots(file_obj, thresh_value):
     
     normalized_img = np.zeros((TARGET_SIZE, TARGET_SIZE, 3), dtype=np.uint8)
     if circles is not None:
-        circles = np.round(circles[0, :]).astype("int")
-        x, y, r = int(circles[0][0]), int(circles[0][1]), int(circles[0][2])
+        # Numpy 에러 방지를 위한 명시적 int 변환
+        x, y, r = int(circles[0][0][0]), int(circles[0][0][1]), int(circles[0][0][2])
         scale = TARGET_RADIUS / float(r)
-        M = cv2.getRotationMatrix2D((x, y), 0, scale)
+        M = cv2.getRotationMatrix2D((float(x), float(y)), 0, scale)
         M[0, 2] += TARGET_CENTER[0] - x
         M[1, 2] += TARGET_CENTER[1] - y
         normalized_img = cv2.warpAffine(image, M, (TARGET_SIZE, TARGET_SIZE))
     else:
         normalized_img = cv2.resize(image, (TARGET_SIZE, TARGET_SIZE))
 
-    # [2] 흑점 검출
+    # [2] 흑점 검출 및 강력한 노이즈 제거 
     norm_gray = cv2.cvtColor(normalized_img, cv2.COLOR_BGR2GRAY)
     mask = np.zeros(norm_gray.shape, dtype=np.uint8)
     cv2.circle(mask, TARGET_CENTER, TARGET_RADIUS, 255, -1)
     
+    # 흑점 이진화
     _, thresh = cv2.threshold(norm_gray, thresh_value, 255, cv2.THRESH_BINARY_INV)
     thresh = cv2.bitwise_and(thresh, thresh, mask=mask)
+    
+    kernel = np.ones((3,3), np.uint8)
+    thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
     
     contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     
@@ -268,7 +272,7 @@ def process_and_extract_spots(file_obj, thresh_value):
     spot_id = 1
     for cnt in contours:
         area = cv2.contourArea(cnt)
-        if area >= 5: # 노이즈 제거
+        if area >= 5.0: # 5px 미만의 남은 노이즈 2차 차단
             M = cv2.moments(cnt)
             if M["m00"] != 0:
                 cx = int(M["m10"] / M["m00"])
@@ -287,12 +291,10 @@ def process_and_extract_spots(file_obj, thresh_value):
 def analyze_series():
     files = request.files.getlist('images')
     if not files or len(files) < 2:
-        return jsonify({'status': 'fail', 'message': '정확한 궤적 추적을 위해 2장 이상의 이미지를 업로드해야 합니다.'})
+        return jsonify({'status': 'fail', 'message': '2장 이상의 이미지를 업로드해야 합니다.'})
 
     try:
         thresh_val = int(request.form.get('threshValue', 80))
-        
-        # 파일명을 기준으로 정렬하여 시간 순서 보장
         files = sorted(files, key=lambda x: x.filename)
         
         series_data = []
@@ -309,19 +311,17 @@ def analyze_series():
         if len(series_data) < 2:
             return jsonify({'status': 'fail', 'message': '분석 가능한 이미지가 2장 미만입니다.'})
 
-        # 처음 이미지와 마지막 이미지 추출
         first_data = series_data[0]
         last_data = series_data[-1]
-        
         img1, spots1 = first_data['img'], first_data['spots']
         img2, spots2 = last_data['img'], last_data['spots']
 
-        # 1. 흑점 매칭 (첫 이미지 vs 마지막 이미지 유클리디안 거리 매칭)
+        # 1. 흑점 매칭
         matches = []
         match_id = 1
         for s1 in spots1:
             best_match = None
-            min_dist = 200 # 최대 탐색 반경 여유 허용치
+            min_dist = 200 
             for s2 in spots2:
                 dist = math.hypot(s1['cx'] - s2['cx'], s1['cy'] - s2['cy'])
                 if dist < min_dist:
@@ -341,9 +341,9 @@ def analyze_series():
                 match_id += 1
 
         if not matches:
-            return jsonify({'status': 'fail', 'message': '첫 이미지와 마지막 이미지 사이에서 동일한 흑점을 추적하지 못했습니다.'})
+            return jsonify({'status': 'fail', 'message': '흑점을 추적하지 못했습니다. 민감도를 조절해보세요.'})
 
-        # 2. 대표 흑점 선정 (면적이 가장 큰 확실한 흑점 기준)
+        # 2. 대표 흑점 선정
         rep_match = max(matches, key=lambda x: x['area'])
         
         # 3. 추정 적도 및 추정 자전축 계산
@@ -351,19 +351,23 @@ def analyze_series():
         rotation_axis_angle = equator_angle + 90.0
 
         output_data = []
-        result_visual = img2.copy() # 시각화는 마지막 이미지 기준
+        result_visual = img2.copy()
         
-        # 4. 각 매칭된 흑점에 대해 심화 수식 적용
+        # 4. 각 매칭 흑점 심화 수식 계산
         for m in matches:
+            # 회전 후 좌표
             rot_start_x, rot_start_y = rotate_point(m['start_x'], m['start_y'], TARGET_CENTER[0], TARGET_CENTER[1], equator_angle)
             rot_end_x, rot_end_y = rotate_point(m['end_x'], m['end_y'], TARGET_CENTER[0], TARGET_CENTER[1], equator_angle)
             
+            # 적도 방향 이동량
             equator_move = rot_end_x - rot_start_x
             
+            # 추정 위도
             latitude_ratio = (TARGET_CENTER[1] - rot_start_y) / TARGET_RADIUS
             latitude_ratio = max(-1.0, min(1.0, latitude_ratio)) 
             latitude = math.degrees(math.asin(latitude_ratio))
             
+            # 보정 이동각
             latitude_radius = TARGET_RADIUS * math.cos(math.radians(latitude))
             if abs(latitude_radius) < 1:
                 rotation_angle = 0.0
@@ -385,7 +389,6 @@ def analyze_series():
                 'rotation_angle': round(rotation_angle, 3)
             })
 
-            # 시각화 (화살표, ID 텍스트)
             cv2.arrowedLine(result_visual, (m['start_x'], m['start_y']), (m['end_x'], m['end_y']), (0, 0, 255), 2, tipLength=0.3)
             cv2.circle(result_visual, (m['start_x'], m['start_y']), 3, (255, 0, 0), -1)
             cv2.putText(result_visual, f"ID:{m['id']}", (m['end_x'] + 5, m['end_y'] - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
@@ -400,7 +403,7 @@ def analyze_series():
         _, buffer = cv2.imencode('.jpg', result_visual)
         img_base64 = base64.b64encode(buffer).decode('utf-8')
 
-        # 5. 전체 업로드된 사진(프레임)별 메타데이터 요약본 작성
+        # 5. 메타데이터 (정상 분석 장수, 사진 이름, 흑점 수, 개별 좌표 등)
         image_summaries = []
         for data in series_data:
             image_summaries.append({
