@@ -218,7 +218,11 @@ def analyze_single():
         return jsonify({'status': 'fail', 'message': f'분석 중 에러 발생: {str(e)}'})
 
 # ==========================================
-# 3. 연속 영상 분석 엔진 (main_series.py 완벽 통합 + 노이즈 제거)
+# 3. 연속 영상 분석 엔진 
+# ==========================================
+
+# ==========================================
+# 3. 연속 영상 분석 엔진 (초강력 노이즈 제거 및 UI 연동 적용)
 # ==========================================
 
 def rotate_point(x, y, center_x, center_y, angle_deg):
@@ -230,8 +234,8 @@ def rotate_point(x, y, center_x, center_y, angle_deg):
     rot_y = -rel_x * math.sin(theta) + rel_y * math.cos(theta)
     return rot_x, rot_y
 
-def process_and_extract_spots(file_obj, thresh_value):
-    """이미지 정규화 및 [노이즈 제거]가 포함된 흑점 추출"""
+def process_and_extract_spots(file_obj, thresh_value, min_spot_size):
+    """초강력 형태학적 필터링 및 테두리 예외 처리가 적용된 흑점 추출"""
     file_bytes = np.frombuffer(file_obj.read(), np.uint8)
     image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
     if image is None: return None, None
@@ -244,7 +248,6 @@ def process_and_extract_spots(file_obj, thresh_value):
     
     normalized_img = np.zeros((TARGET_SIZE, TARGET_SIZE, 3), dtype=np.uint8)
     if circles is not None:
-        # Numpy 에러 방지를 위한 명시적 int 변환
         x, y, r = int(circles[0][0][0]), int(circles[0][0][1]), int(circles[0][0][2])
         scale = TARGET_RADIUS / float(r)
         M = cv2.getRotationMatrix2D((float(x), float(y)), 0, scale)
@@ -254,17 +257,25 @@ def process_and_extract_spots(file_obj, thresh_value):
     else:
         normalized_img = cv2.resize(image, (TARGET_SIZE, TARGET_SIZE))
 
-    # [2] 흑점 검출 및 강력한 노이즈 제거 
+    # [2] 흑점 검출 및 🔥 초강력 노이즈 제거
     norm_gray = cv2.cvtColor(normalized_img, cv2.COLOR_BGR2GRAY)
-    mask = np.zeros(norm_gray.shape, dtype=np.uint8)
-    cv2.circle(mask, TARGET_CENTER, TARGET_RADIUS, 255, -1)
     
-    # 흑점 이진화
+    # 1차 필터링: 미세한 픽셀 노이즈 융화
+    norm_gray = cv2.GaussianBlur(norm_gray, (3, 3), 0)
+
+    # 🔥 2차 필터링: 태양 테두리(Limb) 오작동 방지를 위해 마스크 반경 15px 축소
+    safe_radius = TARGET_RADIUS - 15
+    mask = np.zeros(norm_gray.shape, dtype=np.uint8)
+    cv2.circle(mask, TARGET_CENTER, safe_radius, 255, -1)
+    
+    # 이진화 적용
     _, thresh = cv2.threshold(norm_gray, thresh_value, 255, cv2.THRESH_BINARY_INV)
     thresh = cv2.bitwise_and(thresh, thresh, mask=mask)
     
-    kernel = np.ones((3,3), np.uint8)
-    thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
+    # 🔥 3차 필터링: 단순 네모가 아닌 '타원형(Ellipse)' 커널로 진짜 흑점 형태만 보존
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=1)  # 주변 자잘한 노이즈 제거
+    thresh = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations=1) # 진짜 흑점 내부 구멍 메우기
     
     contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     
@@ -272,7 +283,8 @@ def process_and_extract_spots(file_obj, thresh_value):
     spot_id = 1
     for cnt in contours:
         area = cv2.contourArea(cnt)
-        if area >= 5.0: # 5px 미만의 남은 노이즈 2차 차단
+        # 🔥 4차 필터링: UI에서 설정한 최소 면적(min_spot_size) 미만은 완전히 무시
+        if area >= min_spot_size: 
             M = cv2.moments(cnt)
             if M["m00"] != 0:
                 cx = int(M["m10"] / M["m00"])
@@ -294,12 +306,15 @@ def analyze_series():
         return jsonify({'status': 'fail', 'message': '2장 이상의 이미지를 업로드해야 합니다.'})
 
     try:
+        # 🔥 UI에서 민감도와 흑점 크기값을 모두 받아옵니다.
         thresh_val = int(request.form.get('threshValue', 80))
+        min_spot_size = float(request.form.get('minSpotSize', 15.0)) # 기본값 15.0으로 상향
+        
         files = sorted(files, key=lambda x: x.filename)
         
         series_data = []
         for idx, file_obj in enumerate(files):
-            img, spots = process_and_extract_spots(file_obj, thresh_val)
+            img, spots = process_and_extract_spots(file_obj, thresh_val, min_spot_size)
             if img is not None:
                 series_data.append({
                     "index": idx + 1,
@@ -341,7 +356,7 @@ def analyze_series():
                 match_id += 1
 
         if not matches:
-            return jsonify({'status': 'fail', 'message': '흑점을 추적하지 못했습니다. 민감도를 조절해보세요.'})
+            return jsonify({'status': 'fail', 'message': '흑점을 추적하지 못했습니다. 민감도나 흑점 크기를 조절해보세요.'})
 
         # 2. 대표 흑점 선정
         rep_match = max(matches, key=lambda x: x['area'])
@@ -355,19 +370,15 @@ def analyze_series():
         
         # 4. 각 매칭 흑점 심화 수식 계산
         for m in matches:
-            # 회전 후 좌표
             rot_start_x, rot_start_y = rotate_point(m['start_x'], m['start_y'], TARGET_CENTER[0], TARGET_CENTER[1], equator_angle)
             rot_end_x, rot_end_y = rotate_point(m['end_x'], m['end_y'], TARGET_CENTER[0], TARGET_CENTER[1], equator_angle)
             
-            # 적도 방향 이동량
             equator_move = rot_end_x - rot_start_x
             
-            # 추정 위도
             latitude_ratio = (TARGET_CENTER[1] - rot_start_y) / TARGET_RADIUS
             latitude_ratio = max(-1.0, min(1.0, latitude_ratio)) 
             latitude = math.degrees(math.asin(latitude_ratio))
             
-            # 보정 이동각
             latitude_radius = TARGET_RADIUS * math.cos(math.radians(latitude))
             if abs(latitude_radius) < 1:
                 rotation_angle = 0.0
@@ -403,7 +414,7 @@ def analyze_series():
         _, buffer = cv2.imencode('.jpg', result_visual)
         img_base64 = base64.b64encode(buffer).decode('utf-8')
 
-        # 5. 메타데이터 (정상 분석 장수, 사진 이름, 흑점 수, 개별 좌표 등)
+        # 5. 메타데이터 생성
         image_summaries = []
         for data in series_data:
             image_summaries.append({
