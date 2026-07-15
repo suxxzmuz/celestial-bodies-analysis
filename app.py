@@ -137,9 +137,9 @@ def analyze_single():
         mean_brightness = float(np.mean(sun_pixels))
         std_brightness  = float(np.std(sun_pixels))
 
-        thresh_param  = int(request.form.get('threshValue',  12))
-        min_spot_size = int(request.form.get('minSpotSize',  1))
-        max_spot_size = int(request.form.get('maxSpotSize',  500)) 
+        thresh_param  = int(request.form.get('threshValue',  1))
+        min_spot_size = int(request.form.get('minSpotSize',  5))
+        max_spot_size = int(request.form.get('maxSpotSize',  2)) 
 
         spots = cv2.adaptiveThreshold(
             masked, 255,
@@ -283,26 +283,21 @@ def normalize_sun_image(image):
 
 def detect_spots_main(normalized):
     """
-    처리 순서 그대로:
-    ① 정규화된 이미지 흑백 변환
-    ② Gaussian Blur (5, 5)
-    ③ 원형 마스크 — 태양 원판 내부만 분석
-    ④ adaptiveThreshold + THRESH_BINARY_INV — 어두운 흑점을 흰색으로
-    ⑤ findContours — 흑점 후보 윤곽선 검출
-    ⑥ 노이즈 제거 — 면적 2px² 미만 / 500px² 초과 제외
+    main_series.py의 detect_spots() 와 완전히 동일한 로직:
+    - GaussianBlur(5,5)
+    - 원형 마스크 적용
+    - adaptiveThreshold(ADAPTIVE_THRESH_GAUSSIAN_C, THRESH_BINARY_INV, 31, 8)  ← 핵심 노이즈 제거
+    - 면적 필터: 2 px² 미만 또는 500 px² 초과 제거
     """
-    # ① 흑백 변환
     gray = cv2.cvtColor(normalized, cv2.COLOR_BGR2GRAY)
-
-    # ② Gaussian Blur
     gray = cv2.GaussianBlur(gray, (5, 5), 0)
 
-    # ③ 원형 마스크 — 원판 내부만
+    # 원형 마스크 (태양 원판 영역만)
     mask = np.zeros(gray.shape, dtype=np.uint8)
     cv2.circle(mask, TARGET_CENTER, TARGET_RADIUS, 255, -1)
     masked = cv2.bitwise_and(gray, gray, mask=mask)
 
-    # ④ adaptiveThreshold + THRESH_BINARY_INV
+    # ── adaptiveThreshold: 노이즈 제거의 핵심 (main_series.py 동일 파라미터) ──
     spots_mask = cv2.adaptiveThreshold(
         masked, 255,
         cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
@@ -311,13 +306,12 @@ def detect_spots_main(normalized):
     )
     spots_mask = cv2.bitwise_and(spots_mask, spots_mask, mask=mask)
 
-    # ⑤ 윤곽선 검출
     contours, _ = cv2.findContours(spots_mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
 
-    # ⑥ 노이즈 제거 — 면적 2px² 미만 / 500px² 초과 제외
     spot_list = []
     for contour in contours:
         area = cv2.contourArea(contour)
+        # ── 면적 필터: 2~500 px² (main_series.py 동일) ──
         if area < 2 or area > 500:
             continue
         moments = cv2.moments(contour)
@@ -327,7 +321,7 @@ def detect_spots_main(normalized):
         cy = int(moments["m01"] / moments["m00"])
         spot_list.append({"cx": cx, "cy": cy, "area": round(area, 2)})
 
-    # x 좌표 기준 정렬
+    # x 좌표 기준 정렬 (main_series.py 동일)
     spot_list.sort(key=lambda s: s["cx"])
     return spot_list
 
@@ -419,6 +413,7 @@ def analyze_series():
 
             normalized, sun_x, sun_y, sun_r = normalize_sun_image(image)
             if normalized is None:
+                # 태양 검출 실패 시 건너뜀
                 continue
 
             spots = detect_spots_main(normalized)
