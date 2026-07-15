@@ -281,38 +281,65 @@ def normalize_sun_image(image):
     return normalized, x, y, r
 
 
-def detect_spots_main(normalized):
+def detect_spots_main(normalized, min_area=15, dark_percentile=15):
     """
-    main_series.py의 detect_spots() 와 완전히 동일한 로직:
-    - GaussianBlur(5,5)
-    - 원형 마스크 적용
-    - adaptiveThreshold(ADAPTIVE_THRESH_GAUSSIAN_C, THRESH_BINARY_INV, 31, 8)  ← 핵심 노이즈 제거
-    - 면적 필터: 2 px² 미만 또는 500 px² 초과 제거
+    진짜 흑점만 걸러내는 2단계 필터:
+
+    [1단계] 절대 어둠 기준 — 태양 원판 내 픽셀 밝기의 하위 dark_percentile%
+            보다 어두운 픽셀만 후보로 남긴다.
+            → 표면 과립(granulation) 등 미세 명암 노이즈를 원천 차단.
+
+    [2단계] adaptiveThreshold — 남은 어두운 후보 영역 안에서
+            주변 대비 기준으로 다시 한 번 이진화.
+            → 두 마스크의 AND → 진짜 어둡고 & 주변 대비로도 어두운 영역만 통과.
+
+    [3단계] morphological open — 작은 점 노이즈 제거 (커널 3×3).
+
+    [4단계] 면적 하한 min_area px² — 너무 작은 파편 제거.
+            상한 500 px²는 유지 (태양 원판 대비 터무니없이 큰 것 제거).
+
+    파라미터:
+        min_area       : 흑점으로 인정할 최소 면적 (px²), HTML 슬라이더로 조정 가능
+        dark_percentile: 태양 표면 밝기 분포에서 몇 % 이하를 '어두운 픽셀'로 볼지
+                         (기본 15 → 상위 85%는 노이즈로 버림)
     """
     gray = cv2.cvtColor(normalized, cv2.COLOR_BGR2GRAY)
     gray = cv2.GaussianBlur(gray, (5, 5), 0)
 
-    # 원형 마스크 (태양 원판 영역만)
+    # ── 태양 원판 마스크 ──
     mask = np.zeros(gray.shape, dtype=np.uint8)
     cv2.circle(mask, TARGET_CENTER, TARGET_RADIUS, 255, -1)
     masked = cv2.bitwise_and(gray, gray, mask=mask)
 
-    # ── adaptiveThreshold: 노이즈 제거의 핵심 (main_series.py 동일 파라미터) ──
-    spots_mask = cv2.adaptiveThreshold(
+    # ── [1단계] 절대 어둠 기준 이진화 ──
+    sun_pixels = masked[mask == 255]
+    dark_thresh = int(np.percentile(sun_pixels, dark_percentile))
+    _, abs_mask = cv2.threshold(masked, dark_thresh, 255, cv2.THRESH_BINARY_INV)
+    abs_mask = cv2.bitwise_and(abs_mask, abs_mask, mask=mask)
+
+    # ── [2단계] adaptiveThreshold (주변 대비) ──
+    adapt_mask = cv2.adaptiveThreshold(
         masked, 255,
         cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
         cv2.THRESH_BINARY_INV,
         31, 8
     )
-    spots_mask = cv2.bitwise_and(spots_mask, spots_mask, mask=mask)
+    adapt_mask = cv2.bitwise_and(adapt_mask, adapt_mask, mask=mask)
+
+    # ── 두 마스크 AND → 둘 다 어두운 영역만 통과 ──
+    spots_mask = cv2.bitwise_and(abs_mask, adapt_mask)
+
+    # ── [3단계] morphological open으로 점 노이즈 제거 ──
+    kernel = np.ones((3, 3), np.uint8)
+    spots_mask = cv2.morphologyEx(spots_mask, cv2.MORPH_OPEN, kernel)
 
     contours, _ = cv2.findContours(spots_mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
 
     spot_list = []
     for contour in contours:
         area = cv2.contourArea(contour)
-        # ── 면적 필터: 2~500 px² (main_series.py 동일) ──
-        if area < 2 or area > 500:
+        # ── [4단계] 면적 필터 ──
+        if area < min_area or area > 500:
             continue
         moments = cv2.moments(contour)
         if moments["m00"] == 0:
@@ -321,7 +348,7 @@ def detect_spots_main(normalized):
         cy = int(moments["m01"] / moments["m00"])
         spot_list.append({"cx": cx, "cy": cy, "area": round(area, 2)})
 
-    # x 좌표 기준 정렬 (main_series.py 동일)
+    # x 좌표 기준 정렬
     spot_list.sort(key=lambda s: s["cx"])
     return spot_list
 
@@ -403,6 +430,10 @@ def analyze_series():
     try:
         files = sorted(files, key=lambda f: f.filename)
 
+        # HTML 슬라이더에서 노이즈 필터 파라미터 수신
+        min_area       = int(request.form.get('minArea',       15))
+        dark_percentile = int(request.form.get('darkPercentile', 15))
+
         # ── Step 1: 전체 사진 정규화 + 흑점 검출 ──
         series_data = []
         for idx, file_obj in enumerate(files):
@@ -416,7 +447,9 @@ def analyze_series():
                 # 태양 검출 실패 시 건너뜀
                 continue
 
-            spots = detect_spots_main(normalized)
+            spots = detect_spots_main(normalized,
+                                      min_area=min_area,
+                                      dark_percentile=dark_percentile)
 
             series_data.append({
                 "index":      idx + 1,

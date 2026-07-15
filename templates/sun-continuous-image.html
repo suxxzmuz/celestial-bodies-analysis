@@ -101,8 +101,12 @@
             </div>
             
             <div class="control-group">
-                <label>추적 민감도 한계값</label>
-                <input type="number" id="threshValue" value="80" min="1" max="254">
+                <label>최소 흑점 면적 (px²)</label>
+                <input type="number" id="minArea" value="15" min="1" max="500">
+            </div>
+            <div class="control-group">
+                <label>어둠 기준 (하위 %)</label>
+                <input type="number" id="darkPercentile" value="15" min="1" max="50">
             </div>
             <button class="btn" id="analyzeBtn" onclick="analyzeSeries()">다중 프레임 추적 실행</button>
         </section>
@@ -179,7 +183,8 @@
             for (let i = 0; i < files.length; i++) {
                 formData.append('images', files[i]);
             }
-            formData.append('threshValue', document.getElementById('threshValue').value);
+            formData.append('minArea',        document.getElementById('minArea').value);
+            formData.append('darkPercentile', document.getElementById('darkPercentile').value);
 
             const btn = document.getElementById('analyzeBtn');
             btn.innerText = "심화 연산 처리 중...";
